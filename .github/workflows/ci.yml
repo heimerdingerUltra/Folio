@@ -1,7 +1,8 @@
 name: CI
 
 # Tests on every push and pull request, then the wheel and the source
-# distribution. A tag "vX.Y.Z" also publishes them as a GitHub release.
+# distribution. A tag "vX.Y.Z" also publishes them as a GitHub release and
+# pushes a container image of the command-line tool to GitHub Packages.
 
 on:
   push:
@@ -95,3 +96,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
+
+  package:
+    name: Publish the container image
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Build the image from the wheel and run it
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          docker build -t "$image:${GITHUB_REF_NAME#v}" -t "$image:latest" .
+          docker run --rm "$image:latest" --help > /dev/null
+      - name: Push to GitHub Packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push --all-tags "$IMAGE"

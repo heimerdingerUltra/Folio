@@ -136,11 +136,20 @@ python -m pytest tests -q
    clean environment where the `process-pdfs` command is run;
 3. the upload of both files as the `dist` artifact of the run.
 
-A tag `vX.Y.Z` equal to the package version also publishes them as a GitHub release:
+A tag `vX.Y.Z` equal to the package version also publishes them as a GitHub release, and pushes
+a container image of the command-line tool to GitHub Packages (built from the wheel, base
+install: heuristic tables, no OCR):
 
 ```bash
 git tag v1.1.0 && git push origin v1.1.0
 ```
+
+```bash
+docker run --rm -v "$PWD:/work" ghcr.io/heimerdingerultra/folio --input data --output results.json
+```
+
+GitHub Packages has no Python package index, which is why the wheel is attached to the release
+and the package is a container image.
 
 ## Parsing
 
@@ -454,7 +463,8 @@ spelling variants as errors.
 
 ```
 pyproject.toml                    package definition: dependencies, extras, commands
-.github/workflows/ci.yml          tests, wheel build, release on tag
+.github/workflows/ci.yml          tests, wheel build, release and container image on tag
+Dockerfile                        image of the command-line tool, built from the wheel
 process_pdfs.py, main.py          command-line entry points
 pdf_chunking/
   command_line.py                 arguments and pipeline chain
