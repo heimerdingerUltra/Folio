@@ -58,8 +58,12 @@ from metadata_extraction.behavioural_tests import (
     select_bibliography_chunks,
     select_invariance_cases,
 )
-from metadata_extraction.dataset_exploration import SERIES_BLUE, SERIES_ORANGE, style_figure
-from metadata_extraction.experiment_dashboard import plot_approach_leaderboard, plot_experiment_dashboard
+from metadata_extraction.experiment_dashboard import (
+    plot_approach_leaderboard,
+    plot_experiment_dashboard,
+    plot_loss_curves,
+    plot_search_trials,
+)
 from metadata_extraction.experiment_tracking import ExperimentTracker
 from metadata_extraction.extraction_evaluation import build_error_analysis, score_extraction_answers
 from metadata_extraction.extraction_prompt import (
@@ -76,7 +80,12 @@ from metadata_extraction.grounded_training_examples import (
     summarize_label_coverage,
 )
 from metadata_extraction.hallucination_guards import ANSWER_GUARDS
-from metadata_extraction.hyperparameter_search import SearchResult, search_hyperparameters
+from metadata_extraction.hyperparameter_search import (
+    SearchResult,
+    build_config_ablations,
+    run_config_ablation,
+    search_hyperparameters,
+)
 from metadata_extraction.paper_metadata_schema import parse_model_answer
 from metadata_extraction.rule_based_extractor import extract_metadata_with_rules
 from metadata_extraction.training_data_validation import (
@@ -192,6 +201,7 @@ class MetadataExtractionExperiment:
         self.prompt_token_budget: dict[str, Any] = {}
         self.smoke_test: dict[str, Any] = {}
         self.search_result: SearchResult = SearchResult()
+        self.config_ablation: list[dict[str, Any]] = []
         self.training_metrics: dict[str, Any] = {}
         self.loss_history: list[dict[str, Any]] = []
         self.answers_by_approach: dict[str, list[str]] = {}
@@ -550,7 +560,28 @@ class MetadataExtractionExperiment:
         """
         if self.config.search_trials <= 0:
             return self
-        trial_number = iter(range(self.config.search_trials))
+        self.search_result = search_hyperparameters(
+            self._short_run_objective("search"),
+            self.config.searched_fields,
+            self.config.search_trials,
+            self.config.seed,
+        )
+        if self.search_result.best_overrides:
+            # Train the final model for the length the winner was validated
+            # at: a learning rate that is best at 20 steps can overfit at 40.
+            self.config = replace(
+                self.config, **self.search_result.best_overrides, max_steps=self.config.search_trial_steps
+            )
+            self.split_by_document()  # the class ratio may have changed
+        return self
+
+    def _short_run_objective(self, stage: str) -> Any:
+        """Build the function that trains one short run and returns its validation loss.
+
+        Every call trains a fresh adapter for ``search_trial_steps`` steps on
+        the same examples and is logged as its own tracked run.
+        """
+        run_number = iter(range(10_000))
 
         def validation_loss_of(overrides: dict[str, Any]) -> float:
             """Train a short run with ``overrides`` and return its validation loss."""
@@ -562,7 +593,8 @@ class MetadataExtractionExperiment:
             )
             trial = MetadataExtractionExperiment(trial_config)
             trial.examples = self.examples
-            self.tracker.start_run(f"search-trial-{next(trial_number)}", {**overrides, "stage": "search"})
+            trial.arxiv_examples = self.arxiv_examples
+            self.tracker.start_run(f"{stage}-trial-{next(run_number)}", {**overrides, "stage": stage})
             try:
                 trial.split_by_document().load_quantized_base_model().attach_lora_adapters().train()
                 self.tracker.log_loss_history(trial.loss_history)
@@ -575,16 +607,16 @@ class MetadataExtractionExperiment:
                 trial.release_gpu_memory()
                 self.tracker.end_run()
 
-        self.search_result = search_hyperparameters(
-            validation_loss_of, self.config.searched_fields, self.config.search_trials, self.config.seed
-        )
-        if self.search_result.best_overrides:
-            # Train the final model for the length the winner was validated
-            # at: a learning rate that is best at 20 steps can overfit at 40.
-            self.config = replace(
-                self.config, **self.search_result.best_overrides, max_steps=self.config.search_trial_steps
-            )
-            self.split_by_document()  # the class ratio may have changed
+        return validation_loss_of
+
+    def run_config_ablation(self) -> MetadataExtractionExperiment:
+        """Change one setting at a time around the current configuration.
+
+        Run after the search: it tells which of the selected values matter.
+        The configuration itself is not changed by this stage.
+        """
+        variants = build_config_ablations(self.config.searched_fields)
+        self.config_ablation = run_config_ablation(self._short_run_objective("ablation"), variants)
         return self
 
     def save_adapter(self) -> MetadataExtractionExperiment:
@@ -663,6 +695,7 @@ class MetadataExtractionExperiment:
             "prompt_token_budget": self.prompt_token_budget,
             "smoke_test": self.smoke_test,
             "hyperparameter_search": asdict(self.search_result),
+            "config_ablation": self.config_ablation,
             "training_metrics": self.training_metrics,
             "loss_history": self.loss_history,
             "evaluations": self.evaluations,
@@ -713,25 +746,15 @@ class MetadataExtractionExperiment:
             self.loss_history, shown, facts, "LoRA metadata extraction: experiment dashboard"
         )
 
+    def plot_search_trials(self) -> Any:
+        """Validation loss of every search trial, with its configuration."""
+        return plot_search_trials(self.search_result.trials)
+
     def plot_leaderboard(self) -> Any:
         """Fully-correct rate of every approach with its confidence interval."""
         return plot_approach_leaderboard(self.leaderboard, self.selected_approach)
 
     def plot_loss_curves(self) -> Any:
         """Training loss per step and validation loss per evaluation."""
-        import plotly.graph_objects as go
-
-        train = [(entry["step"], entry["loss"]) for entry in self.loss_history if "loss" in entry]
-        validation = [(entry["step"], entry["eval_loss"]) for entry in self.loss_history if "eval_loss" in entry]
-        figure = go.Figure()
-        for points, name, colour, mode in (
-            (train, "train loss", SERIES_BLUE, "lines"),
-            (validation, "validation loss (selection paper)", SERIES_ORANGE, "lines+markers"),
-        ):
-            if points:
-                steps, losses = zip(*points)
-                figure.add_trace(go.Scatter(x=steps, y=losses, mode=mode, name=name, line={"color": colour, "width": 2}))
-        figure.update_xaxes(title_text="step")
-        figure.update_yaxes(title_text="cross-entropy loss")
-        figure.update_layout(title={"text": f"LoRA r={self.config.lora_rank} on {self.config.base_model.split('/')[-1]}"})
-        return style_figure(figure, height=380, width=760)
+        title = f"LoRA r={self.config.lora_rank} on {self.config.base_model.split('/')[-1]}"
+        return plot_loss_curves(self.loss_history, title)

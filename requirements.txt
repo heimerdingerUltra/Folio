@@ -1,5 +1,40 @@
-# Everything needed to run the pipeline, the benchmarks, the experiment's data
-# stages and the tests from a checkout. Dependencies are declared once, in
-# pyproject.toml; versions of the reference run are recorded in
-# results.run_report.json ("environment").
--e .[all,dev]
+# Dependencies of the pipeline, the benchmarks, the notebook's data stages and
+# the tests. Same list as pyproject.toml, where each one is explained.
+#
+#   pip install -r requirements.txt
+#
+# Versions of the reference run are recorded in results.run_report.json.
+
+# Pipeline: python process_pdfs.py --input ./data --output ./results.json
+pymupdf>=2.1; python_version >= "3.11"
+pymupdf>=1.24.10; python_version < "3.11"
+pydantic>=2.6
+tiktoken>=0.7
+numpy>=1.26
+
+# Table detection model (--table-detection layout, the default when installed)
+pymupdf-layout>=2.1; python_version >= "3.11"
+
+# OCR for pages without a text layer (--ocr auto)
+rapidocr>=3.0
+onnxruntime>=1.17
+
+# Alternative parser (--pdf-parser opendataloader); also needs Java 11+
+opendataloader-pdf>=2.5; python_version >= "3.11"
+
+# Quality metrics and retrieval benchmark
+scikit-learn>=1.4
+sentence-transformers>=3.0
+
+# Notebook: data stages, charts, tracking. The GPU libraries (unsloth, ...)
+# are installed by the notebook itself, on Colab.
+pandas>=2.0
+plotly>=5.20
+optuna>=3.6
+mlflow-skinny>=2.14
+wandb>=0.17
+
+# Tests and parser benchmark
+pytest>=8.0
+pdfplumber>=0.11
+pypdf>=4.0

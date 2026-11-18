@@ -141,3 +141,60 @@ def search_hyperparameters(
             key: best[key] for key in ("lora_rank", "lora_alpha", "learning_rate", "empty_per_informative")
         }
     return result
+
+
+ATTENTION_PROJECTIONS = ("q_proj", "k_proj", "v_proj", "o_proj")
+
+
+def build_config_ablations(reference: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """One-factor-at-a-time variants of a configuration.
+
+    The search optimises four values together; an ablation changes a single
+    one and keeps the rest, which shows what each choice is worth. The
+    alpha / rank ratio of the reference is kept when the rank changes.
+
+    Args:
+        reference: ``lora_rank``, ``lora_alpha`` and ``learning_rate`` of the
+            configuration to vary.
+
+    Returns:
+        Variant name -> configuration overrides. The first one is the
+        reference itself (no override).
+    """
+    rank, alpha, learning_rate = reference["lora_rank"], reference["lora_alpha"], reference["learning_rate"]
+    ratio = alpha / rank
+    variants: dict[str, dict[str, Any]] = {"reference": {}}
+    for other_rank in (4, 8, 16, 32):
+        if other_rank != rank:
+            variants[f"rank {other_rank}"] = {"lora_rank": other_rank, "lora_alpha": int(other_rank * ratio)}
+    variants["alpha = rank" if ratio != 1 else "alpha = 2 x rank"] = {"lora_alpha": rank if ratio != 1 else 2 * rank}
+    variants["learning rate / 4"] = {"learning_rate": learning_rate / 4}
+    variants["learning rate x 2"] = {"learning_rate": learning_rate * 2}
+    variants["attention projections only"] = {"lora_target_modules": ATTENTION_PROJECTIONS}
+    variants["LoRA dropout 0.05"] = {"lora_dropout": 0.05}
+    return variants
+
+
+def run_config_ablation(objective: Objective, variants: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Evaluate each variant; report its validation loss and the gap to the reference.
+
+    A variant that fails (out of memory, for instance) is recorded and skipped.
+    """
+    rows = []
+    for number, (name, overrides) in enumerate(variants.items()):
+        row = _run_trial(objective, overrides, number)
+        rows.append(
+            {
+                "variant": name,
+                "changed": ", ".join(f"{key}={value}" for key, value in overrides.items()) or "nothing",
+                "validation_loss": row["validation_loss"],
+                "state": row["state"],
+                "seconds": row["seconds"],
+            }
+        )
+    reference_loss = rows[0]["validation_loss"] if rows else None
+    for row in rows:
+        both = reference_loss is not None and row["validation_loss"] is not None
+        row["difference_to_reference"] = round(row["validation_loss"] - reference_loss, 4) if both else None
+    return rows
+

@@ -274,10 +274,10 @@ def test_exploration_tables_and_figures(experiment: MetadataExtractionExperiment
     assert distribution.loc["train", "examples"] == len(experiment.train_examples)
     assert distribution.loc["validation", "documents"] == 1
     figure = plot_dataset_overview(experiment.chunks, splits)
-    assert [title.text for title in figure.layout.annotations] == [
+    assert [title.text.removeprefix("<b>").removesuffix("</b>") for title in figure.layout.annotations] == [
         "Chunk length by content type", "Chunks per document", "Examples supporting each field",
     ]  # fmt: skip
-    assert {trace.name for trace in figure.data if trace.legendgroup == "split"} == set(splits)
+    assert {trace.name for trace in figure.data if trace.legend == "legend2"} == set(splits)
 
 
 def test_experiment_dashboard_renders_from_recorded_results() -> None:
@@ -288,7 +288,7 @@ def test_experiment_dashboard_renders_from_recorded_results() -> None:
     }
     figure = plot_experiment_dashboard(loss_history, evaluations, {"train_runtime_seconds": 208}, "Dashboard")
     assert {trace.type for trace in figure.data} == {"scatter", "bar", "table"}
-    assert [trace.name for trace in figure.data if getattr(trace, "legendgroup", None) == "evaluation"] == list(evaluations)
+    assert [trace.name for trace in figure.data if getattr(trace, "legend", None) == "legend2"] == list(evaluations)
     assert "train runtime seconds" in figure.data[-1].cells.values[0]
 
 

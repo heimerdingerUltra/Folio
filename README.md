@@ -339,7 +339,27 @@ that contains the answer. Gains are paired differences with a bootstrap interval
 * The benchmark is small and its questions were written by the author of the pipeline. It is a
   regression test more than an evaluation.
 
-`scripts/tune_chunking_parameters.py` sweeps chunk size and overlap against this benchmark.
+**Parameter sweep.** `scripts/tune_chunking_parameters.py` re-chunks the papers for three sizes
+and two overlaps and scores each configuration with the dense retriever
+([`chunking_parameter_sweep.json`](benchmarks/chunking_parameter_sweep.json)).
+
+| Chunks | Max tokens | Overlap | Passages | Hit@1 | Hit@5 | MRR@10 | Tokens in top 5 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| structure, `embedding_text` | 256 | 50 | 536 | 0.525 | 0.750 | 0.626 | 963 |
+| | 256 | 0 | 502 | 0.450 | 0.750 | 0.577 | 940 |
+| | 400 | 50 | 356 | 0.425 | 0.750 | 0.550 | 1298 |
+| | 400 | 0 | 347 | 0.425 | 0.750 | 0.540 | 1297 |
+| | 512 | 50 | 299 | 0.500 | 0.725 | 0.589 | 1527 |
+| | 512 | 0 | 294 | 0.525 | 0.725 | 0.602 | 1481 |
+| fixed | 400 | 50 | 260 | 0.425 | 0.675 | 0.526 | 1982 |
+| | 512 | 50 | 198 | 0.350 | 0.725 | 0.526 | 2549 |
+
+The default (400 tokens, overlap 50) is not the best cell: 256 tokens with overlap scores higher
+(MRR 0.626 against 0.550) and returns fewer tokens. The default was not changed on this evidence.
+One question is worth 0.025 of hit rate, the ordering between sizes is not monotonic, and the
+intervals measured above on the same 40 questions are several times wider than these gaps. What
+the sweep does support: structure-aware chunks with their section header are at or above the
+fixed windows at every size, with 35 % to 50 % fewer tokens returned.
 
 ## Metadata extraction with LoRA
 
@@ -408,10 +428,69 @@ answers into one record. This routing has not been run with the fine-tuned model
 | Split comparability | permutation test on chunk-length distributions |
 | Baselines | regex rules, zero-shot and few-shot prompting, on the same test paper |
 | Hyperparameters | Optuna (TPE) over rank, alpha, learning rate and class ratio; objective: validation loss |
+| Ablation | one setting changed at a time around the selected configuration (rank, alpha, learning rate, adapted modules, dropout) |
 | Invented values | share of answers with a title, author or figure absent from the chunk |
 | Behavioural tests | invariance to harmless edits, abstention on bibliography chunks |
 | Comparison | Wilson intervals, exact McNemar test, selection rule set before the run |
 | Tracking | MLflow (local) and Weights & Biases (online with `WANDB_API_KEY`, offline otherwise) |
+
+### Experiments on the data
+
+[`data_experiments.py`](metadata_extraction/data_experiments.py) varies one decision about the
+training data at a time, before any training. All four run on a CPU and are in the notebook.
+
+**Chunk size.** The five papers chunked again at five sizes (heuristic table mode), same labelling
+rule.
+
+| Max tokens | Chunks | Informative | Share | Title | Authors | Problem | Metrics | Gold authors / metrics found |
+|---:|---:|---:|---:|---:|---:|---:|---:|:---:|
+| 150 | 806 | 28 | 4.5 % | 5 | 6 | 9 | 15 | 45/45, 13/13 |
+| 250 | 516 | 26 | 6.5 % | 5 | 5 | 10 | 15 | 45/45, 13/13 |
+| 400 | 362 | 27 | 9.1 % | 5 | 5 | 10 | 16 | 45/45, 13/13 |
+| 600 | 285 | 26 | 10.7 % | 5 | 5 | 9 | 16 | 45/45, 13/13 |
+| 800 | 254 | 27 | 12.2 % | 5 | 5 | 10 | 16 | 45/45, 13/13 |
+
+The number of chunks that carry a label does not depend on the chunk size: a field is stated in
+one place. Only the share of empty chunks changes. Chunk size is chosen for retrieval.
+
+**Labelling rule.** What a looser rule would add, and how many of its labels are absent from the
+chunk they are attached to.
+
+| Rule | Informative chunks | Title labels (unsupported) | Author labels (unsupported) |
+|---|---:|---:|---:|
+| A field only where the chunk states it (used) | 27 | 5 (0 %) | 45 (0 %) |
+| Document metadata on first-page chunks | 19 | 19 (74 %) | 174 (74 %) |
+| Document metadata on every chunk | 290 | 290 (98 %) | 2,742 (98 %) |
+
+The naive rule gives ten times more examples, almost all of which teach the model to write a title
+it cannot read.
+
+**Training corpus.** Informative training examples for 0, 10, 20 and 40 extra arXiv papers: 15,
+31, 48, 78.
+
+**Class ratio.** Empty examples kept per informative one, on the three-paper training set.
+
+| Ratio | Examples | Informative share | Passes over the data in 20 steps |
+|---:|---:|---:|---:|
+| 0.5 | 23 | 65 % | 7.0 |
+| 1 | 30 | 50 % | 5.3 |
+| 2 | 45 | 33 % | 3.6 |
+| 4 | 75 | 20 % | 2.1 |
+
+**Configuration trials.** The five search trials of the recorded run:
+
+| Trial | Rank | Alpha | Learning rate | Validation loss |
+|---:|---:|---:|---:|---:|
+| 0 (default) | 16 | 16 | 2.0e-4 | 0.4639 |
+| 1 | 16 | 16 | 3.6e-4 | 0.4502 |
+| 2 | 8 | 16 | 1.2e-4 | 0.4879 |
+| 3 | 8 | 16 | 1.5e-4 | 0.4724 |
+| 4 (selected) | 8 | 16 | 4.8e-4 | 0.4358 |
+
+In these five trials the loss decreases with the learning rate, across both ranks; five trials
+make this an observation, not a result. The one-factor
+ablation that would confirm it is implemented (`run_config_ablation`, section 6.1 of the notebook)
+and tested on its logic, but has not been run on a GPU.
 
 ### Results
 
@@ -450,13 +529,30 @@ overfitted). Metrics are matched on their figures, and invention (checked agains
 counted separately from over-extraction (checked against the labels); the first scoring counted
 spelling variants as errors.
 
+## Pipeline enhancements and logging
+
+The brief lists four open-ended ideas and asks for one or two. All four are implemented, because
+each one was needed to check the others.
+
+| Idea of the brief | Implemented as | Where |
+|---|---|---|
+| Experiment tracking and logging | Python `logging` (console, optional `--log-file`); a JSON run report per run with execution times per document and stage, chunks per document, token-length distribution and error rate; an HTML dashboard built from it; MLflow and Weights & Biases for the fine-tuning runs | [`run_logging.py`](pdf_chunking/run_logging.py), [`chunking_pipeline.py`](pdf_chunking/chunking_pipeline.py), [`results.run_report.json`](results.run_report.json), [`experiment_tracking.py`](metadata_extraction/experiment_tracking.py) |
+| Chunk and parsing quality metrics | boundary integrity (chunks that start and end on a sentence), table integrity (tables not cut by chunking), lexical cohesion between adjacent chunks, share of chunks within the size range, exact duplicates; each also computed for the fixed-window baseline | [`chunk_quality_metrics.py`](pdf_chunking/chunk_quality_metrics.py) |
+| Metadata and data validation | a Pydantic schema for every exported chunk, dataset-level checks (unique ids, contiguous indices, token budget) also available as a command; a Pydantic schema for the extracted metadata; ten checks on the training set | [`chunk_record_schema.py`](pdf_chunking/chunk_record_schema.py), [`dataset_validation_cli.py`](pdf_chunking/dataset_validation_cli.py), [`paper_metadata_schema.py`](metadata_extraction/paper_metadata_schema.py), [`training_data_validation.py`](metadata_extraction/training_data_validation.py) |
+| Smart chunking heuristics | chunks are cut at sentence ends only, never inside an equation or a table row; a heading stays with the text it introduces; a table keeps its caption and repeats its header row when it must be split | [`chunking_strategies.py`](pdf_chunking/chunking_strategies.py) |
+
+Two uses of the run report in this README: it records which table backend was used, because
+`find_tables()` changes behaviour silently (see [Limits](#limits)), and its per-rule counters are
+the source of the figures in the [Parsing](#parsing) table.
+
 ## Limitations
 
 * The layout rules were developed on five LaTeX papers. The run report counts how often each rule
   fires, which helps when moving to other document types.
 * Table grids and equations are approximate (see [Limits](#limits)).
 * OCR was checked on one rasterised paper, not on real scans (skew, noise, stamps).
-* The fine-tuning has not been re-run with the arXiv training corpus.
+* The fine-tuning has not been re-run with the arXiv training corpus, and the configuration
+  ablation has not been run on a GPU.
 * The retrieval benchmark and the extraction test set are small.
 
 ## Repository layout
@@ -486,5 +582,5 @@ pdf_chunking/
 metadata_extraction/              LoRA experiment: data, training, evaluation, tracking
 scripts/                          benchmarks and parameter sweep
 benchmarks/                       benchmark results
-tests/                            184 tests, on synthetic PDFs
+tests/                            193 tests, on synthetic PDFs
 ```
