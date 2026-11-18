@@ -33,17 +33,41 @@ _MIN_PROBLEM_CHARS = 40
 
 
 def load_arxiv_metadata(path: Path | str) -> dict[str, dict[str, Any]]:
-    """Read ``arxiv_metadata.json``: PDF file name -> title, authors, abstract."""
+    """Read ``arxiv_metadata.json``: PDF file name -> title, authors, abstract.
+
+    Args:
+        path: Path of the UTF-8 JSON file.
+
+    Returns:
+        PDF file name -> record with ``title``, ``authors`` and ``abstract``.
+    """
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def quotes_a_result_figure(text: str) -> bool:
-    """Does ``text`` contain a percentage or a decimal number?"""
+    """Does ``text`` contain a percentage or a decimal number?
+
+    Args:
+        text: Text to search: a chunk or a single sentence.
+
+    Returns:
+        True when a digit followed by ``%`` (one space allowed) or a decimal number such as
+        ``0.5`` occurs.
+    """
     return bool(_RESULT_FIGURE_RE.search(text))
 
 
 def opening_sentences_found_in(abstract: str, chunk_key: str) -> str | None:
-    """Leading sentences of ``abstract`` (at most two) that the chunk contains verbatim."""
+    """Leading sentences of ``abstract`` (at most two) that the chunk contains verbatim.
+
+    Args:
+        abstract: Abstract of the paper, as given by arXiv.
+        chunk_key: Chunk text already normalised with :func:`comparison_key`.
+
+    Returns:
+        The matched sentences joined by a space, or ``None`` when they total fewer than 40
+        characters (which includes the case where the first sentence is not in the chunk).
+    """
     found: list[str] = []
     for sentence in _SENTENCE_SPLIT_RE.split(abstract)[:_MAX_PROBLEM_SENTENCES]:
         if comparison_key(sentence) not in chunk_key:
@@ -55,6 +79,10 @@ def opening_sentences_found_in(abstract: str, chunk_key: str) -> str | None:
 
 def label_chunk_with_arxiv_metadata(chunk: dict[str, Any], paper: dict[str, Any]) -> PaperMetadata | None:
     """Label one chunk from the arXiv record of its paper.
+
+    Args:
+        chunk: Chunk record with ``content_type``, ``chunk_text`` and ``page_number`` (1-based).
+        paper: arXiv record with ``title``, ``authors`` (list of names) and ``abstract``.
 
     Returns:
         The supported fields, or ``None`` when the chunk must be left out
@@ -75,7 +103,18 @@ def label_chunk_with_arxiv_metadata(chunk: dict[str, Any], paper: dict[str, Any]
 def build_arxiv_training_examples(
     chunks: list[dict[str, Any]], metadata_by_document: dict[str, dict[str, Any]]
 ) -> list[TrainingExample]:
-    """Label the chunks of every paper that has an arXiv record."""
+    """Label the chunks of every paper that has an arXiv record.
+
+    Args:
+        chunks: Chunk records with ``chunk_id``, ``source_document``, ``chunk_text``,
+            ``content_type`` and ``page_number``.
+        metadata_by_document: PDF file name -> arXiv record (``title``, ``authors``, ``abstract``).
+            Chunks of a document without a record are skipped.
+
+    Returns:
+        One example per labelled chunk, in input order. Chunks that
+        :func:`label_chunk_with_arxiv_metadata` leaves out are absent.
+    """
     examples = []
     for chunk in chunks:
         paper = metadata_by_document.get(chunk["source_document"])
@@ -95,7 +134,17 @@ def build_arxiv_training_examples(
 def summarize_arxiv_label_coverage(
     examples: list[TrainingExample], metadata_by_document: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
-    """How many papers got each field, and how many examples carry a label."""
+    """How many papers got each field, and how many examples carry a label.
+
+    Args:
+        examples: Examples built by :func:`build_arxiv_training_examples`.
+        metadata_by_document: PDF file name -> arXiv record. It must contain every document of
+            ``examples``; the length of its ``authors`` list is the expected author count.
+
+    Returns:
+        Counts under ``papers``, ``examples``, ``informative_examples``, ``papers_with_title``,
+        ``papers_with_problem_statement``, ``authors_found`` and ``authors_expected``.
+    """
     by_document: dict[str, list[PaperMetadata]] = {}
     for example in examples:
         by_document.setdefault(example.document, []).append(example.target)

@@ -26,6 +26,13 @@ _INTEGER_FIELDS = tuple(
 def load_records(path: Path) -> list[dict[str, Any]]:
     """Read chunk records from a ``.json``, ``.jsonl`` or ``.csv`` file.
 
+    Args:
+        path: Dataset file, read as UTF-8. Its extension (case-insensitive) selects the format.
+
+    Returns:
+        One dictionary per record, not yet validated. For CSV, the integer fields of the schema
+        are converted back from text when they hold digits; blank JSON Lines are skipped.
+
     Raises:
         ValueError: If the extension is unsupported or the JSON is not a list.
     """
@@ -51,7 +58,14 @@ def load_records(path: Path) -> list[dict[str, Any]]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point; returns the process exit code."""
+    """CLI entry point; returns the process exit code.
+
+    Args:
+        argv: Command-line arguments without the program name. None reads ``sys.argv``.
+
+    Returns:
+        0 if the dataset is valid, 1 if it is not or if the file cannot be read.
+    """
     parser = argparse.ArgumentParser(description="Validate a chunk dataset.")
     parser.add_argument("dataset", type=Path)
     parser.add_argument("--max-tokens", type=int, default=None,

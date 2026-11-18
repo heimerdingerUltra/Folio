@@ -35,6 +35,13 @@ def load_token_counter(encoding_name: str = "cl100k_base") -> TokenCounter:
 
     Falls back to a regex estimate when tiktoken or its vocabulary is
     unavailable (offline machine), so the pipeline never fails on it.
+
+    Args:
+        encoding_name: Name of a tiktoken encoding, such as ``cl100k_base``.
+
+    Returns:
+        A function giving the number of tokens of a string. The result is cached per
+        ``encoding_name``.
     """
     try:
         import tiktoken

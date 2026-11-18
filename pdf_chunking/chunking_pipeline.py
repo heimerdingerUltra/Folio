@@ -99,6 +99,13 @@ class ChunkingPipelineConfig:
 def find_pdf_files(input_path: Path) -> list[Path]:
     """List the PDFs under ``input_path`` (a folder or one file), sorted.
 
+    Args:
+        input_path: A folder, searched without recursion for files with a ``.pdf`` extension
+            (case-insensitive), or a single file, returned as is whatever its extension.
+
+    Returns:
+        The PDF paths, sorted by file name without regard to case.
+
     Raises:
         FileNotFoundError: If ``input_path`` does not exist.
     """

@@ -101,6 +101,14 @@ def _iterate_text_blocks(elements: Sequence[dict[str, Any]]) -> Iterator[TextBlo
 def build_parsed_document_from_opendataloader_json(data: dict[str, Any], fallback_name: str) -> ParsedDocument:
     """Map one OpenDataLoader JSON tree onto a :class:`ParsedDocument`.
 
+    Args:
+        data: Root object of the JSON file written by OpenDataLoader for one PDF.
+        fallback_name: Source file name to use when ``data`` has no ``file name`` entry.
+
+    Returns:
+        The document, with section paths assigned. The title is the ``Doctitle`` heading, else
+        the ``title`` entry of ``data``, else the file stem with underscores turned into spaces.
+
     Raises:
         PdfExtractionError: If the tree holds no text at all.
     """
@@ -132,6 +140,12 @@ def convert_pdfs_to_opendataloader_json(
     paths: Sequence[Path], output_directory: Path, table_method: TableMethod = "default"
 ) -> dict[str, Path]:
     """Run OpenDataLoader once over ``paths`` (one JVM start for the batch).
+
+    Args:
+        paths: PDFs to convert. Their stems must be distinct: each JSON is named after its PDF.
+        output_directory: Folder that receives one ``<stem>.json`` per PDF.
+        table_method: ``default`` finds tables from ruling lines; ``cluster`` also groups
+            aligned text.
 
     Returns:
         ``{pdf file name: path of its JSON}`` for every PDF that was converted.
@@ -165,6 +179,11 @@ def extract_pdf_documents_with_opendataloader(
     paths: Sequence[Path], table_method: TableMethod = "default"
 ) -> dict[str, ParsedDocument | PdfExtractionError]:
     """Parse ``paths`` with OpenDataLoader.
+
+    Args:
+        paths: PDFs to parse, converted together in a temporary folder that is then deleted.
+        table_method: ``default`` finds tables from ruling lines; ``cluster`` also groups
+            aligned text.
 
     Returns:
         ``{pdf file name: ParsedDocument}``; a PDF that could not be parsed maps

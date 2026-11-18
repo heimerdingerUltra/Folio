@@ -84,6 +84,12 @@ def validate_chunk_dataset(
     Dataset checks: unique ids, contiguous ``chunk_index`` per document, and
     the token budget when ``max_tokens`` is given.
 
+    Args:
+        records: Chunk records to check. ``ChunkRecord`` instances are taken as schema-valid;
+            dictionaries are validated against the schema, and those that fail are reported and
+            left out of the dataset checks.
+        max_tokens: Largest ``token_count`` allowed for a chunk. None skips the budget check.
+
     Returns:
         JSON-serialisable summary with ``is_valid`` and up to 20 ``errors``.
     """

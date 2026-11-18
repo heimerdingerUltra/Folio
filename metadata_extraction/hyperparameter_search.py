@@ -179,6 +179,16 @@ def run_config_ablation(objective: Objective, variants: dict[str, dict[str, Any]
     """Evaluate each variant; report its validation loss and the gap to the reference.
 
     A variant that fails (out of memory, for instance) is recorded and skipped.
+
+    Args:
+        objective: Trains with the given configuration overrides and returns the validation loss.
+        variants: Variant name -> configuration overrides. The first entry is taken as the
+            reference.
+
+    Returns:
+        One row per variant, in input order, with ``variant``, ``changed``, ``validation_loss``
+        (``None`` for a failed variant), ``state``, ``seconds`` and ``difference_to_reference``
+        (``None`` when either loss is missing).
     """
     rows = []
     for number, (name, overrides) in enumerate(variants.items()):

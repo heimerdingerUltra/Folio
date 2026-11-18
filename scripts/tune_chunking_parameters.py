@@ -35,7 +35,15 @@ OVERLAP_TOKENS_GRID = (0, 50)
 
 
 def load_parsed_documents(data_dir: Path, cache_file: Path) -> list[ParsedDocument]:
-    """Parse the PDFs, reusing the cache when it is newer than every PDF."""
+    """Parse the PDFs, reusing the cache when it is newer than every PDF.
+
+    Args:
+        data_dir: Directory whose ``*.pdf`` files are parsed (sub-directories are not searched).
+        cache_file: Pickle of the parsed documents; written when missing or older than a PDF.
+
+    Returns:
+        The parsed documents, in the order of the sorted PDF paths.
+    """
     pdf_paths = sorted(data_dir.glob("*.pdf"))
     if cache_file.is_file() and all(cache_file.stat().st_mtime > path.stat().st_mtime for path in pdf_paths):
         return pickle.loads(cache_file.read_bytes())

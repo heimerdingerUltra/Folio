@@ -42,6 +42,13 @@ def gold_metric_is_recovered(gold_metric: str, predicted_metrics: Sequence[str])
 
     A gold metric without any figure is compared on wording, ignoring
     punctuation and case.
+
+    Args:
+        gold_metric: Reference metric sentence.
+        predicted_metrics: Metric strings of the model answer.
+
+    Returns:
+        True when at least one prediction matches the gold metric.
     """
     gold_numbers = _numbers_in(gold_metric)
     if gold_numbers:
@@ -55,7 +62,16 @@ def gold_metric_is_recovered(gold_metric: str, predicted_metrics: Sequence[str])
 
 
 def count_invented_values(predicted: PaperMetadata, chunk_text: str) -> int:
-    """Number of extractive values absent from the chunk (title, authors, metric figures)."""
+    """Number of extractive values absent from the chunk (title, authors, metric figures).
+
+    Args:
+        predicted: Parsed metadata of the model answer.
+        chunk_text: Text of the chunk the answer was produced from.
+
+    Returns:
+        One for a title absent from the chunk, plus one per absent author, plus one per metric
+        quoting at least one number absent from the chunk.
+    """
     text = comparison_key(chunk_text)
     invented = int(bool(predicted.title) and comparison_key(predicted.title or "") not in text)
     invented += sum(comparison_key(name) not in text for name in predicted.main_authors)
@@ -70,6 +86,17 @@ def compare_answer_with_target(example: TrainingExample, raw_answer: str) -> dic
 
     An unparsable answer is scored as an empty prediction (it extracts
     nothing usable) and is flagged by ``answer_status``.
+
+    Args:
+        example: Chunk with its grounded target.
+        raw_answer: Model output as text.
+
+    Returns:
+        Row with ``chunk_id``, ``answer_status``, ``target_is_empty``, ``title_correct`` (``None``
+        when the target has no title), ``wrong_title``, ``authors_found``, ``authors_missed``,
+        ``authors_wrong``, ``metrics_found``, ``metrics_missed``, ``invented_values``,
+        ``problem_statement_agrees``, ``over_extracted``, ``raw_answer``,
+        ``verifiable_fields_correct`` and ``fully_correct``.
     """
     parsed, status = parse_model_answer(raw_answer)
     predicted = parsed or PaperMetadata()
@@ -125,6 +152,10 @@ def _f1(found: int, missed: int, wrong: int) -> float | None:
 def score_extraction_answers(examples: Sequence[TrainingExample], raw_answers: Sequence[str]) -> dict[str, Any]:
     """Aggregate metrics over paired examples and raw answers.
 
+    Args:
+        examples: Chunks with their grounded targets.
+        raw_answers: Model outputs as text, one per example and in the same order.
+
     Returns:
         ``valid_json_rate``; ``title_accuracy``; ``author_f1``;
         ``key_metric_recall`` (gold figures recovered);
@@ -158,7 +189,17 @@ def score_extraction_answers(examples: Sequence[TrainingExample], raw_answers: S
 
 
 def build_error_analysis(examples: Sequence[TrainingExample], raw_answers: Sequence[str]) -> list[dict[str, Any]]:
-    """One readable row per example: what was expected, what went wrong."""
+    """One readable row per example: what was expected, what went wrong.
+
+    Args:
+        examples: Chunks with their grounded targets.
+        raw_answers: Model outputs as text, one per example and in the same order.
+
+    Returns:
+        Rows with ``chunk_id``, ``target`` (``"empty"`` or ``"informative"``), ``answer_status``,
+        ``verifiable_fields`` (``"correct"`` or ``"wrong"``) and ``verdict`` (``"correct"``, or the
+        issues found joined by ``"; "``).
+    """
     table = []
     for example, answer in zip(examples, raw_answers):
         row = compare_answer_with_target(example, answer)

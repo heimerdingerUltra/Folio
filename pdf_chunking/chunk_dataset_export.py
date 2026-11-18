@@ -35,6 +35,14 @@ def _write_atomically(path: Path, write: Any, newline: str | None = None) -> Non
 def write_chunk_dataset(chunks: Sequence[ChunkRecord], path: Path | str) -> Path:
     """Write chunks as ``.json`` (array), ``.jsonl`` or ``.csv``, by extension.
 
+    Args:
+        chunks: Chunk records to write, in output order.
+        path: Destination file. Its extension (case-insensitive) selects the format; missing
+            parent folders are created and an existing file is replaced atomically.
+
+    Returns:
+        The absolute path of the written file.
+
     Raises:
         ValueError: If the extension is not in ``SUPPORTED_FORMATS``.
     """
@@ -70,7 +78,16 @@ def write_chunk_dataset(chunks: Sequence[ChunkRecord], path: Path | str) -> Path
 
 
 def write_json_file(data: dict[str, Any], path: Path | str) -> Path:
-    """Write a dictionary (e.g. the run report) as pretty-printed JSON."""
+    """Write a dictionary (e.g. the run report) as pretty-printed JSON.
+
+    Args:
+        data: JSON-serialisable dictionary. Non-ASCII characters are written as they are.
+        path: Destination file; missing parent folders are created and an existing file is
+            replaced atomically.
+
+    Returns:
+        The absolute path of the written file.
+    """
     path = Path(path)
     _write_atomically(path, lambda stream: json.dump(data, stream, ensure_ascii=False, indent=2))
     return path.resolve()

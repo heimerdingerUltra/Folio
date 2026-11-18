@@ -31,12 +31,26 @@ class TrainingExample:
 
 
 def comparison_key(text: str) -> str:
-    """Case- and whitespace-insensitive form used for substring tests."""
+    """Case- and whitespace-insensitive form used for substring tests.
+
+    Args:
+        text: Any string: a chunk text or a value looked up in it.
+
+    Returns:
+        The text in lower case, runs of whitespace collapsed to one space and both ends stripped.
+    """
     return _WHITESPACE_RE.sub(" ", text).strip().lower()
 
 
 def load_chunk_dataset(path: Path | str) -> list[dict[str, Any]]:
-    """Read the chunk dataset written by ``main.py``."""
+    """Read the chunk dataset written by ``main.py``.
+
+    Args:
+        path: Path of the UTF-8 JSON file.
+
+    Returns:
+        One record per chunk.
+    """
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
@@ -47,6 +61,15 @@ def label_chunk_with_supported_metadata(chunk: dict[str, Any], gold: dict[str, A
     * problem statement: opening chunk (page 1, Abstract or Introduction)
       containing every anchor term;
     * a metric: chunk containing all of its evidence strings.
+
+    Args:
+        chunk: Chunk record with ``chunk_text``, ``content_type``, ``page_number`` (1-based) and
+            ``section``.
+        gold: Gold metadata of the document the chunk comes from: ``title``, ``authors``,
+            ``problem``, ``problem_anchors`` and ``metrics`` (each with ``text`` and ``evidence``).
+
+    Returns:
+        The supported fields; an empty record when the chunk supports none.
     """
     text = comparison_key(chunk["chunk_text"])
     is_prose = chunk["content_type"] == "text"
@@ -69,7 +92,17 @@ def label_chunk_with_supported_metadata(chunk: dict[str, Any], gold: dict[str, A
 def build_grounded_examples(
     chunks: list[dict[str, Any]], gold_by_document: dict[str, dict[str, Any]] | None = None
 ) -> list[TrainingExample]:
-    """Label every non-bibliography chunk of the documents that have gold metadata."""
+    """Label every non-bibliography chunk of the documents that have gold metadata.
+
+    Args:
+        chunks: Chunk records with ``chunk_id``, ``source_document``, ``chunk_text``,
+            ``content_type``, ``page_number`` and ``section``.
+        gold_by_document: PDF file name -> gold metadata. ``None`` or an empty dict selects
+            ``GOLD_PAPER_METADATA``.
+
+    Returns:
+        One example per labelled chunk, in input order.
+    """
     gold_by_document = gold_by_document or GOLD_PAPER_METADATA
     return [
         TrainingExample(
@@ -90,6 +123,15 @@ def downsample_empty_examples(
 
     Empty targets dominate a paper; left as is, "always answer empty" would
     be the cheapest strategy to learn.
+
+    Args:
+        examples: Labelled chunks of one split.
+        empty_per_informative: Empty-target examples kept per informative one. At least one
+            empty example is kept, and never more than there are.
+        seed: Seed of the sampler, for a reproducible selection.
+
+    Returns:
+        The selected examples, shuffled.
     """
     informative = [example for example in examples if not example.target.is_empty]
     empty = [example for example in examples if example.target.is_empty]
@@ -107,6 +149,16 @@ def split_by_document(
 
     Chunks of a paper share its title, authors and vocabulary: a chunk-level
     split would leak the answers into validation.
+
+    Args:
+        examples: Labelled chunks of all papers.
+        validation_document: File name of the paper to hold out.
+
+    Returns:
+        ``(train, validation)``, each in input order.
+
+    Raises:
+        ValueError: If either side of the split is empty.
     """
     train = [example for example in examples if example.document != validation_document]
     validation = [example for example in examples if example.document == validation_document]
@@ -122,6 +174,17 @@ def split_train_validation_test_by_document(
 
     Hyperparameters are chosen on the validation paper; the test paper is
     read once, at the end, so its score is not inflated by model selection.
+
+    Args:
+        examples: Labelled chunks of all papers.
+        validation_document: File name of the paper used for model selection.
+        test_document: File name of the paper used for the final report.
+
+    Returns:
+        ``(train, validation, test)``, each in input order.
+
+    Raises:
+        ValueError: If both documents are the same, or if one of the three splits is empty.
     """
     if validation_document == test_document:
         raise ValueError("validation_document and test_document must differ.")
@@ -135,7 +198,16 @@ def split_train_validation_test_by_document(
 
 
 def summarize_label_coverage(examples: list[TrainingExample]) -> list[dict[str, Any]]:
-    """Per document: how many gold fields are supported by at least one chunk."""
+    """Per document: how many gold fields are supported by at least one chunk.
+
+    Args:
+        examples: Grounded examples of the hand-labelled papers.
+
+    Returns:
+        One row per document of ``GOLD_PAPER_METADATA`` with ``document``, ``chunks``,
+        ``informative``, ``authors_found`` and ``metrics_found`` (``"found/expected"`` strings),
+        ``title_chunks`` and ``problem_chunks``.
+    """
     rows = []
     for document, gold in GOLD_PAPER_METADATA.items():
         targets = [example.target for example in examples if example.document == document]

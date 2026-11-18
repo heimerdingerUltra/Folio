@@ -39,7 +39,14 @@ _SPACES_RE = re.compile(r"\s+")
 
 
 def extract_pymupdf(path: Path) -> list[str]:
-    """PyMuPDF default: ``page.get_text()``."""
+    """PyMuPDF default: ``page.get_text()``.
+
+    Args:
+        path: PDF file to read.
+
+    Returns:
+        The text of each page, in page order.
+    """
     import pymupdf
 
     with pymupdf.open(path) as document:
@@ -47,7 +54,14 @@ def extract_pymupdf(path: Path) -> list[str]:
 
 
 def extract_pdfplumber(path: Path) -> list[str]:
-    """pdfplumber default: ``page.extract_text()``."""
+    """pdfplumber default: ``page.extract_text()``.
+
+    Args:
+        path: PDF file to read.
+
+    Returns:
+        The text of each page, in page order; an empty string for a page without text.
+    """
     import pdfplumber
 
     with pdfplumber.open(path) as document:
@@ -55,14 +69,28 @@ def extract_pdfplumber(path: Path) -> list[str]:
 
 
 def extract_pypdf(path: Path) -> list[str]:
-    """pypdf default: ``page.extract_text()``."""
+    """pypdf default: ``page.extract_text()``.
+
+    Args:
+        path: PDF file to read.
+
+    Returns:
+        The text of each page, in page order; an empty string for a page without text.
+    """
     from pypdf import PdfReader
 
     return [page.extract_text() or "" for page in PdfReader(path).pages]
 
 
 def extract_pipeline(path: Path) -> list[str]:
-    """This repository's extractor (text mode, table finder disabled)."""
+    """This repository's extractor (text mode, table finder disabled).
+
+    Args:
+        path: PDF file to read.
+
+    Returns:
+        The text of each page, in page order: its blocks in reading order, one per line.
+    """
     from pdf_chunking.pdf_layout_extraction import PdfExtractionConfig, extract_pdf_document
 
     document = extract_pdf_document(path, PdfExtractionConfig(table_detection="off"))
@@ -81,7 +109,14 @@ EXTRACTORS: dict[str, Callable[[Path], list[str]]] = {
 
 
 def column_flow_score(pages_by_file: dict[str, list[str]]) -> str:
-    """Return ``"k/n"``: probes found verbatim (column read without mixing)."""
+    """Return ``"k/n"``: probes found verbatim (column read without mixing).
+
+    Args:
+        pages_by_file: PDF file name -> text of each page, as returned by an extractor.
+
+    Returns:
+        The score as text. ``n`` counts only the probes whose file and page are available.
+    """
     found = total = 0
     for filename, page_index, fragment in COLUMN_PROBES:
         pages = pages_by_file.get(filename)

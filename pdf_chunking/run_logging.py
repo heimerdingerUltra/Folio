@@ -10,7 +10,14 @@ LOG_FORMAT = "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
 
 
 def configure_logging(level: str = "INFO", log_file: Path | None = None) -> None:
-    """Log to stderr at ``level`` and, optionally, everything to ``log_file``."""
+    """Log to stderr at ``level`` and, optionally, everything to ``log_file``.
+
+    Args:
+        level: Name of the console threshold (``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``), in
+            any case. An unknown name falls back to ``INFO``.
+        log_file: File that receives every record from ``DEBUG`` up. It is overwritten and its
+            parent folders are created. None disables the file log.
+    """
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
     for handler in list(root.handlers):  # idempotent across repeated calls

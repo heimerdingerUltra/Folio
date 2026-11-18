@@ -36,7 +36,17 @@ from pdf_chunking.retrieval_benchmark import (  # noqa: E402
 
 
 def load_chunk_dataset(path: Path) -> list[Passage]:
-    """Read an exported chunk dataset."""
+    """Read an exported chunk dataset.
+
+    Args:
+        path: JSON file exported by ``main.py``.
+
+    Returns:
+        The passages, one dict per chunk.
+
+    Raises:
+        FileNotFoundError: If ``path`` is not an existing file.
+    """
     if not path.is_file():
         raise FileNotFoundError(
             f"{path} not found. Run: python main.py --input ./data --output ./results.json "
@@ -46,7 +56,13 @@ def load_chunk_dataset(path: Path) -> list[Passage]:
 
 
 def print_markdown_tables(results: dict[str, Any]) -> None:
-    """Print one Markdown table per retriever."""
+    """Print one Markdown table per retriever.
+
+    Args:
+        results: Retriever name -> system name -> metrics: ``passages``, ``hit@1``, ``hit@3``,
+            ``hit@5``, ``mrr@10``, ``top5_tokens`` and, for every system but the reference,
+            ``mrr_gain_vs_fixed`` and ``mrr_gain_ci95`` (low, high).
+    """
     for retriever, systems in results.items():
         print(f"\n### {retriever}\n")
         print("| System | passages | hit@1 | hit@3 | hit@5 | MRR@10 | MRR gain vs fixed (95 % CI) | top-5 tokens |")

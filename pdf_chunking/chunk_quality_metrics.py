@@ -70,7 +70,16 @@ def summarize_token_lengths(token_counts: Sequence[int]) -> dict[str, float]:
 
 
 def bin_token_lengths(token_counts: Sequence[int], bin_width: int = 50) -> dict[str, int]:
-    """Bucket token counts into fixed-width bins, e.g. ``{"0-49": 3, ...}``."""
+    """Bucket token counts into fixed-width bins, e.g. ``{"0-49": 3, ...}``.
+
+    Args:
+        token_counts: Token count of each chunk.
+        bin_width: Width of a bin, in tokens; must be positive.
+
+    Returns:
+        The number of chunks per bin, keyed by ``"<first>-<last>"`` (both inclusive) and ordered
+        by increasing size. Empty bins are omitted.
+    """
     bins = Counter((count // bin_width) * bin_width for count in token_counts)
     return {f"{start}-{start + bin_width - 1}": bins[start] for start in sorted(bins)}
 
@@ -84,6 +93,13 @@ def measure_sentence_boundary_integrity(chunks: Sequence[ChunkRecord]) -> dict[s
     under-counts breaks: a chunk cut right before a proper noun still looks
     clean. It is a lower bound on the damage, which is enough to compare
     strategies.
+
+    Args:
+        chunks: Chunk records to score; those whose ``content_type`` is not ``text`` are ignored.
+
+    Returns:
+        ``chunks_scored`` and, when it is not zero, ``clean_start_rate``, ``clean_end_rate`` and
+        ``clean_both_rate`` as fractions of the scored chunks, rounded to 3 decimals.
     """
     prose = [chunk for chunk in chunks if chunk.content_type == "text"]
     if not prose:
@@ -110,6 +126,15 @@ def measure_table_integrity(document: ParsedDocument, chunks: Sequence[ChunkReco
     how a strategy joins lines. ``1 - intact_rate`` is the *table degradation
     rate* caused by chunking (parsing errors inside cells are a separate
     issue, discussed in the README).
+
+    Args:
+        document: Parsed document whose ``table`` blocks are the reference tables.
+        chunks: Chunks built from ``document`` only; chunks of other documents must be filtered
+            out by the caller.
+
+    Returns:
+        ``tables`` (number of detected tables) and, when it is not zero, ``intact`` and
+        ``intact_rate`` (``intact / tables``, rounded to 3 decimals).
     """
     tables = [block for block in document.blocks if block.block_type == "table"]
     if not tables:
@@ -132,6 +157,16 @@ def measure_lexical_cohesion(chunks: Sequence[ChunkRecord]) -> dict[str, Any]:
     A chunker that cuts at topic boundaries yields chunks more similar to
     themselves than to their neighbours (positive ``cohesion_gap``). Overlap
     mechanically raises the adjacent similarity. Skipped without scikit-learn.
+
+    Args:
+        chunks: Chunk records in document order; only ``text`` chunks are scored. Neighbours are
+            consecutive ``text`` chunks of the same source document.
+
+    Returns:
+        ``available`` (False when scikit-learn is missing) and ``chunks_scored``, plus
+        ``intra_chunk_similarity``, ``adjacent_chunk_similarity`` and ``cohesion_gap`` (their
+        difference). The three similarity keys are absent when fewer than 3 ``text`` chunks
+        exist, when none has at least 4 sentences, or when the TF-IDF vocabulary is empty.
     """
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer

@@ -52,6 +52,14 @@ def normalize_pdf_text(text: str) -> str:
 
     Newlines are kept (table rows, equations). Ligatures are mapped
     explicitly: NFKC would also rewrite math symbols.
+
+    Args:
+        text: Raw text as extracted from a PDF; may span several lines.
+
+    Returns:
+        The cleaned text: control characters removed, runs of spaces and tabs reduced to one
+        space, the space before a comma, semicolon, colon or period removed, and each line
+        stripped.
     """
     text = text.translate(_CHAR_TRANSLATION)
     text = _CONTROL_CHARS_RE.sub("", text)
@@ -104,6 +112,14 @@ def join_wrapped_lines(lines: Sequence[str], vocabulary: Counter[str] | None = N
     elsewhere, join if only the joined form does. Without evidence, join when
     the next fragment is lowercase (or both are upper-case), else keep.
     A URL wrapped over two lines is re-joined.
+
+    Args:
+        lines: Visual lines of one paragraph, top to bottom. Blank lines are skipped.
+        vocabulary: Word counts of the document, as built by :func:`count_document_words`.
+            None means no evidence: only the letter-case rule applies.
+
+    Returns:
+        The paragraph on a single line.
     """
     vocabulary = vocabulary if vocabulary is not None else Counter()
     result = ""
@@ -196,6 +212,13 @@ def split_sentences(text: str) -> list[str]:
 
     Does not split after "et al.", "Fig.", "e.g.", initials or decimals.
     Newline-separated lines (equations, table rows) are never merged or split.
+
+    Args:
+        text: Text to split; each newline-separated line is processed on its own.
+
+    Returns:
+        The sentences in order, stripped of surrounding whitespace. Blank lines produce
+        nothing.
     """
     sentences: list[str] = []
     for segment in text.split("\n"):

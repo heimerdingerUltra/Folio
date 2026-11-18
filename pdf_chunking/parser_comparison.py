@@ -60,7 +60,17 @@ _SPACES_RE = re.compile(r"\s+")
 
 
 def comparison_key(text: str) -> str:
-    """Lower-case alphanumerics only, section number removed."""
+    """Lower-case alphanumerics only, section number removed.
+
+    Args:
+        text: A title or heading, possibly starting with a section number such as ``3.2`` or
+            ``A.1``.
+
+    Returns:
+        The text without its leading section number, lower-cased, keeping only ``a-z`` and
+        ``0-9``. Two headings that differ only in numbering, case, spacing or punctuation get
+        the same key.
+    """
     return _NON_ALPHANUMERIC_RE.sub("", _SECTION_NUMBER_RE.sub("", text).lower())
 
 
@@ -68,12 +78,31 @@ def comparison_key(text: str) -> str:
 
 
 def extract_with_pymupdf_pipeline(paths: Sequence[Path]) -> list[ParsedDocument]:
-    """This repository's extractor, default configuration."""
+    """This repository's extractor, default configuration.
+
+    Args:
+        paths: PDFs to parse, one after the other.
+
+    Returns:
+        One parsed document per path, in the same order.
+    """
     return [extract_pdf_document(path) for path in paths]
 
 
 def extract_with_opendataloader(paths: Sequence[Path], table_method: str = "default") -> list[ParsedDocument]:
-    """OpenDataLoader PDF; a file it cannot parse raises."""
+    """OpenDataLoader PDF; a file it cannot parse raises.
+
+    Args:
+        paths: PDFs to parse in one batch.
+        table_method: ``default`` finds tables from ruling lines; ``cluster`` also groups
+            aligned text.
+
+    Returns:
+        One parsed document per path, in the same order.
+
+    Raises:
+        PdfExtractionError: If the backend is unavailable or any of the files cannot be parsed.
+    """
     results = extract_pdf_documents_with_opendataloader(paths, table_method)
     for result in results.values():
         if isinstance(result, Exception):
@@ -82,7 +111,14 @@ def extract_with_opendataloader(paths: Sequence[Path], table_method: str = "defa
 
 
 def extract_with_opendataloader_cluster_tables(paths: Sequence[Path]) -> list[ParsedDocument]:
-    """OpenDataLoader PDF with ``table_method="cluster"``."""
+    """OpenDataLoader PDF with ``table_method="cluster"``.
+
+    Args:
+        paths: PDFs to parse in one batch.
+
+    Returns:
+        One parsed document per path, in the same order.
+    """
     return extract_with_opendataloader(paths, "cluster")
 
 
@@ -97,7 +133,17 @@ DEFAULT_PARSERS: dict[str, PdfParser] = {
 
 
 def count_correct_titles(documents: Sequence[ParsedDocument], gold_titles: dict[str, str]) -> str:
-    """``"k/n"`` documents whose detected title equals the gold title."""
+    """``"k/n"`` documents whose detected title equals the gold title.
+
+    Args:
+        documents: Parsed documents to score.
+        gold_titles: Expected title per source file name. Documents without an entry are not
+            scored.
+
+    Returns:
+        ``"k/n"``, with ``n`` the documents that have a gold title and ``k`` those whose title
+        has the same :func:`comparison_key` as the gold one.
+    """
     scored = [document for document in documents if document.source_document in gold_titles]
     correct = sum(
         comparison_key(document.title) == comparison_key(gold_titles[document.source_document]) for document in scored
@@ -109,6 +155,17 @@ def score_headings_against_outline(documents: Sequence[ParsedDocument], paths: S
     """Recall and precision of detected headings against the PDF outline.
 
     Only PDFs that carry an outline are scored.
+
+    Args:
+        documents: Parsed documents to score.
+        paths: The source PDFs, in the same order as ``documents``; their outline is the
+            reference.
+
+    Returns:
+        ``outline_entries`` and ``detected_headings`` (totals over the scored PDFs), ``recall``
+        (share of outline entries found among the headings) and ``precision`` (share of
+        headings present in the outline), rounded to 3 decimals. A rate is None when its
+        denominator is zero.
     """
     expected_total = found_total = detected_total = matching_total = 0
     for document, path in zip(documents, paths):
@@ -130,7 +187,15 @@ def score_headings_against_outline(documents: Sequence[ParsedDocument], paths: S
 
 
 def score_column_flow(documents: Sequence[ParsedDocument]) -> str:
-    """``"k/n"`` probes found verbatim: a column was read without mixing in the other."""
+    """``"k/n"`` probes found verbatim: a column was read without mixing in the other.
+
+    Args:
+        documents: Parsed documents. Only those named in ``COLUMN_PROBES`` are probed.
+
+    Returns:
+        ``"k/n"``, with ``n`` the probes whose document is present and ``k`` those whose
+        fragment occurs in the text of its page, whitespace ignored.
+    """
     found = total = 0
     by_name = {document.source_document: document for document in documents}
     for filename, page_index, fragment in COLUMN_PROBES:
@@ -152,7 +217,19 @@ def measure_parser(
     chunking: ChunkingConfig,
     gold_titles: dict[str, str],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Extract, chunk and measure; returns ``(metrics, exported chunks)``."""
+    """Extract, chunk and measure; returns ``(metrics, exported chunks)``.
+
+    Args:
+        name: Label of the parser, stored under ``parser`` in the metrics.
+        parser: Function mapping the PDF paths to parsed documents, in the same order.
+        paths: PDFs to parse.
+        chunking: Chunking settings applied to the documents of this parser.
+        gold_titles: Expected title per source file name, for the title score.
+
+    Returns:
+        The extraction, structure and chunk metrics of the parser, and its chunks as
+        dictionaries, usable as passages by the retrieval benchmark.
+    """
     started = time.perf_counter()
     documents = parser(paths)
     seconds = time.perf_counter() - started
@@ -185,7 +262,19 @@ def score_retrieval_per_parser(
     questions: Sequence[Question],
     scorers: dict[str, SimilarityScorer],
 ) -> dict[str, Any]:
-    """Retrieval metrics per retriever and parser; gains are paired against the first parser."""
+    """Retrieval metrics per retriever and parser; gains are paired against the first parser.
+
+    Args:
+        passages_by_parser: Chunk dictionaries per parser label. The first entry is the
+            reference parser.
+        questions: Benchmark questions, each with ``question``, ``document`` and ``evidence``.
+        scorers: Similarity scorer per retriever label.
+
+    Returns:
+        ``{retriever: {parser: metrics}}``. The metrics are those of :func:`score_retrieval`
+        plus ``answerable_questions`` (``"k/n"`` questions with at least one relevant passage)
+        and, except for the reference parser, ``mrr_gain_vs_reference`` and ``mrr_gain_ci95``.
+    """
     reference_parser = next(iter(passages_by_parser))
     results: dict[str, Any] = {}
     for retriever, scorer in scorers.items():
@@ -214,6 +303,19 @@ def compare_pdf_parsers(
     """Run every parser through the same chunker and the same benchmark.
 
     The first parser is the reference for the paired retrieval gains.
+
+    Args:
+        paths: PDFs given to every parser.
+        questions: Benchmark questions, each with ``question``, ``document`` and ``evidence``.
+        scorers: Similarity scorer per retriever label.
+        gold_titles: Expected title per source file name.
+        parsers: Parser function per label. None or empty uses ``DEFAULT_PARSERS``.
+        chunking: Chunking settings shared by all parsers. None uses the defaults of
+            ``ChunkingConfig``.
+
+    Returns:
+        ``n_pdfs``, ``parsers`` (the metrics of :func:`measure_parser`, one entry per parser)
+        and ``retrieval`` (the output of :func:`score_retrieval_per_parser`).
     """
     chunking = chunking or ChunkingConfig()
     measured, passages_by_parser = [], {}
@@ -228,7 +330,16 @@ def compare_pdf_parsers(
 
 
 def tabulate_parser_comparison(comparison: dict[str, Any]) -> list[dict[str, Any]]:
-    """One row per measure, one column per parser (for a DataFrame or Markdown)."""
+    """One row per measure, one column per parser (for a DataFrame or Markdown).
+
+    Args:
+        comparison: Output of :func:`compare_pdf_parsers`.
+
+    Returns:
+        One dictionary per measure: ``measure`` holds its label and each parser label maps to
+        the value for that parser. Extraction, structure and chunk measures come first, then
+        four rows per retriever.
+    """
     parsers = comparison["parsers"]
     measures: list[tuple[str, Callable[[dict[str, Any]], Any]]] = [
         ("extraction seconds", lambda m: m["extraction_seconds"]),

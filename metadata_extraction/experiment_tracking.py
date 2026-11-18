@@ -50,16 +50,30 @@ class MlflowBackend:
         mlflow.set_experiment(project)
 
     def start_run(self, run_name: str, parameters: dict[str, Any]) -> None:
-        """Open a run and log its parameters."""
+        """Open a run and log its parameters.
+
+        Args:
+            run_name: Display name of the run.
+            parameters: Run parameters; each value is logged as a string cut to 250 characters.
+        """
         self._mlflow.start_run(run_name=run_name)
         self._mlflow.log_params({key: str(value)[:250] for key, value in parameters.items()})
 
     def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
-        """Log numeric metrics, optionally at a training step."""
+        """Log numeric metrics, optionally at a training step.
+
+        Args:
+            metrics: Metric name to value.
+            step: Training step the values belong to; None lets MLflow use its default step.
+        """
         self._mlflow.log_metrics(metrics, step=step)
 
     def log_artifact(self, path: Path) -> None:
-        """Attach a file to the current run."""
+        """Attach a file to the current run.
+
+        Args:
+            path: Local file to store with the run's artifacts.
+        """
         self._mlflow.log_artifact(str(path))
 
     def end_run(self) -> None:
@@ -112,7 +126,13 @@ class WandbBackend:
             os.environ.setdefault("WANDB_SILENT", "true")  # online, W&B prints each run's URL
 
     def start_run(self, run_name: str, parameters: dict[str, Any]) -> None:
-        """Open a run in the project, grouped with the other runs of this session."""
+        """Open a run in the project, grouped with the other runs of this session.
+
+        Args:
+            run_name: Display name of the run.
+            parameters: Run configuration, stored as the W&B config. Its ``stage`` entry, when
+                present, becomes the job type; otherwise the job type is ``run``.
+        """
         self._run = self._wandb.init(
             project=self._project,
             name=run_name,
@@ -125,12 +145,21 @@ class WandbBackend:
             self.project_url = self._run.get_project_url()
 
     def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
-        """Log numeric metrics; the training step is logged as a value."""
+        """Log numeric metrics; the training step is logged as a value.
+
+        Args:
+            metrics: Metric name to value.
+            step: Training step, logged under ``training_step``; None omits it.
+        """
         # W&B requires increasing steps within a run; keep ours as a logged value instead.
         self._wandb.log({**metrics, **({"training_step": step} if step is not None else {})})
 
     def log_artifact(self, path: Path) -> None:
-        """Upload a file with the current run."""
+        """Upload a file with the current run.
+
+        Args:
+            path: Local file to upload immediately.
+        """
         self._wandb.save(str(path), policy="now")
 
     def end_run(self) -> None:
@@ -176,17 +205,34 @@ class ExperimentTracker:
                 self.backends.remove(backend)
 
     def start_run(self, run_name: str, parameters: dict[str, Any]) -> None:
-        """Open a run on every backend."""
+        """Open a run on every backend.
+
+        Args:
+            run_name: Display name of the run.
+            parameters: Run parameters, passed unchanged to each backend.
+        """
         self._call("start_run", run_name, parameters)
 
     def log_metrics(self, metrics: dict[str, Any], step: int | None = None) -> None:
-        """Log the numeric entries of ``metrics`` on every backend."""
+        """Log the numeric entries of ``metrics`` on every backend.
+
+        Args:
+            metrics: Metric name to value. Only ``int`` and ``float`` values are logged, converted
+                to float; other entries are ignored, and nothing is logged when none is numeric.
+            step: Training step the values belong to, or None.
+        """
         numeric = {key: float(value) for key, value in metrics.items() if isinstance(value, (int, float))}
         if numeric:
             self._call("log_metrics", numeric, step)
 
     def log_loss_history(self, loss_history: Sequence[dict[str, Any]]) -> None:
-        """Log per-step training and validation losses recorded by the trainer."""
+        """Log per-step training and validation losses recorded by the trainer.
+
+        Args:
+            loss_history: Trainer log entries. ``loss``, ``eval_loss`` and ``learning_rate`` are
+                logged as ``train_loss``, ``validation_loss`` and ``learning_rate`` at the entry's
+                ``step`` (0 when absent); entries with none of these keys are skipped.
+        """
         for entry in loss_history:
             metrics = {
                 name: entry[key]
@@ -197,7 +243,11 @@ class ExperimentTracker:
                 self.log_metrics(metrics, step=int(entry.get("step", 0)))
 
     def log_artifact(self, path: Path | str) -> None:
-        """Attach ``path`` to the run on every backend, if the file exists."""
+        """Attach ``path`` to the run on every backend, if the file exists.
+
+        Args:
+            path: Local file to attach; a path that does not exist is ignored.
+        """
         if Path(path).exists():
             self._call("log_artifact", Path(path))
 
@@ -216,7 +266,16 @@ class ExperimentTracker:
 def create_experiment_tracker(
     backend_names: Sequence[str] = ("mlflow", "wandb"), project: str = DEFAULT_PROJECT
 ) -> ExperimentTracker:
-    """Build a tracker with every requested backend that is available."""
+    """Build a tracker with every requested backend that is available.
+
+    Args:
+        backend_names: Backends to create, among ``mlflow`` and ``wandb``. A name that is
+            unknown or whose backend cannot be created is skipped with a warning.
+        project: MLflow experiment name and W&B project name.
+
+    Returns:
+        A tracker over the backends that could be created, possibly none.
+    """
     factories = {"mlflow": MlflowBackend, "wandb": WandbBackend}
     backends: list[TrackingBackend] = []
     for name in backend_names:

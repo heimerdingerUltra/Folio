@@ -14,7 +14,16 @@ METADATA_FIELDS = ("title", "main_authors", "core_problem_statement", "key_metri
 
 
 def summarize_chunks_per_document(chunks: Sequence[dict[str, Any]]) -> pd.DataFrame:
-    """Per document: pages, chunks by content type, token statistics."""
+    """Per document: pages, chunks by content type, token statistics.
+
+    Args:
+        chunks: Chunk records with ``source_document``, ``chunk_id``, ``page_end``,
+            ``token_count`` and ``content_type``.
+
+    Returns:
+        One row per document: ``pages`` (highest ``page_end``), ``chunks``, ``tokens``,
+        ``median_tokens``, ``max_tokens`` and one chunk-count column per content type.
+    """
     frame = pd.DataFrame(chunks)
     summary = frame.groupby("source_document").agg(
         pages=("page_end", "max"),
@@ -28,7 +37,15 @@ def summarize_chunks_per_document(chunks: Sequence[dict[str, Any]]) -> pd.DataFr
 
 
 def summarize_label_distribution(splits: dict[str, Sequence[TrainingExample]]) -> pd.DataFrame:
-    """Per split: number of examples supporting each metadata field."""
+    """Per split: number of examples supporting each metadata field.
+
+    Args:
+        splits: Split name (for instance ``train``) to its examples.
+
+    Returns:
+        One row per split: ``examples``, ``documents``, ``empty`` (examples with an empty
+        target) and, for each metadata field, the number of examples whose target fills it.
+    """
     rows = []
     for name, examples in splits.items():
         targets = [example.target for example in examples]
@@ -52,6 +69,15 @@ def style_figure(figure: Any, title: str, height: int, width: int | None = None)
 
     Subplot titles (the annotations present when this is called) are moved
     from the centre of their panel to its left edge.
+
+    Args:
+        figure: Plotly figure, modified in place.
+        title: Figure title, set in bold at the top left.
+        height: Figure height in pixels.
+        width: Figure width in pixels; None lets Plotly size the figure to its container.
+
+    Returns:
+        The same figure.
     """
     panel_width = None
     if "xaxis" in figure.layout and figure.layout.xaxis.domain:
@@ -83,6 +109,17 @@ def legend_inside(figure: Any, row: int, col: int, above: bool = False, left: bo
     The corner is the right one unless ``left``. With ``above``, the legend
     is laid out horizontally on the title line of the panel instead of
     inside the plot area.
+
+    Args:
+        figure: Plotly figure built with ``make_subplots``.
+        row: Row of the panel, starting at 1.
+        col: Column of the panel, starting at 1.
+        above: Place the legend horizontally just above the panel instead of inside it.
+        left: Anchor the legend to the left edge of the panel instead of the right.
+
+    Returns:
+        A dict for a ``legend`` entry of ``figure.update_layout``, positioned in paper
+        coordinates.
     """
     panel = figure.get_subplot(row, col)
     (start, end), top = panel.xaxis.domain, panel.yaxis.domain[1]
@@ -108,7 +145,16 @@ def _wrap_label(label: str, width: int = 14) -> str:
 
 
 def plot_dataset_overview(chunks: Sequence[dict[str, Any]], splits: dict[str, Sequence[TrainingExample]]) -> Any:
-    """Three panels: chunk length by content type, chunks per document, labels per split."""
+    """Three panels: chunk length by content type, chunks per document, labels per split.
+
+    Args:
+        chunks: Chunk records with ``source_document``, ``chunk_id``, ``token_count`` and
+            ``content_type`` (``text``, ``table`` or ``references``).
+        splits: Split name to its examples, as for ``summarize_label_distribution``.
+
+    Returns:
+        A Plotly figure.
+    """
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 

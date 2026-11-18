@@ -43,6 +43,15 @@ def parse_papers(data_dir: Path | str, table_detection: str = "heuristic") -> li
 
     The heuristic table mode is used by default: it takes seconds instead of
     minutes, and tables carry few of the labels studied here.
+
+    Args:
+        data_dir: Directory holding the PDFs named in ``GOLD_PAPER_METADATA``; files that
+            are missing are skipped.
+        table_detection: Table detection mode of ``PdfExtractionConfig``: ``auto``,
+            ``layout``, ``heuristic`` or ``off``.
+
+    Returns:
+        One parsed document per paper found, in the order of ``GOLD_PAPER_METADATA``.
     """
     config = PdfExtractionConfig(table_detection=table_detection)  # type: ignore[arg-type]
     paths = [Path(data_dir) / name for name in GOLD_PAPER_METADATA if (Path(data_dir) / name).is_file()]
@@ -67,6 +76,17 @@ def run_chunk_size_experiment(
     A gold metric is "found" when one chunk contains all of its evidence
     strings: evidence split over two chunks is lost, which is how small
     chunks hurt.
+
+    Args:
+        documents: Parsed papers, as returned by ``parse_papers``.
+        max_tokens_grid: Maximum chunk sizes to try, in tokens. The overlap and the minimum
+            size keep their defaults, capped at an eighth and a quarter of the maximum.
+
+    Returns:
+        One row per chunk size: ``max_tokens``, ``chunks``, ``labelled_chunks``,
+        ``informative``, ``informative_share``, the number of examples supporting each field
+        (``title``, ``authors``, ``problem``, ``metrics``) and ``gold_authors_found`` and
+        ``gold_metrics_found`` as ``found/total`` strings.
     """
     default = ChunkingConfig()
     gold_metrics = sum(len(gold["metrics"]) for gold in GOLD_PAPER_METADATA.values())
@@ -127,6 +147,16 @@ def run_labelling_rule_experiment(chunks: Sequence[dict[str, Any]]) -> pd.DataFr
     A title or author label is unsupported when the string does not occur
     in the chunk: training on it teaches the model to produce values it
     cannot read.
+
+    Args:
+        chunks: Chunk records with ``source_document``, ``content_type``, ``chunk_text`` and
+            ``page_number``. Chunks of papers without gold metadata and chunks of type
+            ``references`` are ignored.
+
+    Returns:
+        One row per rule of ``LABELLING_RULES``: ``labelling_rule``, ``informative``,
+        ``title_labels``, ``author_labels`` and, for both, the share of labels absent from
+        their chunk (``*_unsupported``, None when the rule produced no label).
     """
     rows = []
     for name, rule in LABELLING_RULES.items():
@@ -163,7 +193,20 @@ def run_training_corpus_experiment(
     arxiv_examples: Sequence[TrainingExample],
     extra_papers_grid: Sequence[int] = EXTRA_PAPERS_GRID,
 ) -> pd.DataFrame:
-    """Size of the training set when the first ``n`` extra arXiv papers are added."""
+    """Size of the training set when the first ``n`` extra arXiv papers are added.
+
+    Args:
+        hand_labelled_train: Training examples of the hand-labelled papers, kept in every
+            row.
+        arxiv_examples: Examples of the extra arXiv papers; papers are added in
+            alphabetical order of their document name.
+        extra_papers_grid: Numbers of extra papers to try; a count above the number of
+            papers available is skipped.
+
+    Returns:
+        One row per count: ``extra_papers``, ``papers``, ``informative`` and the number of
+        examples supporting each field (``title``, ``authors``, ``problem``, ``metrics``).
+    """
     papers = sorted({example.document for example in arxiv_examples})
     rows = []
     for count in extra_papers_grid:
@@ -185,7 +228,18 @@ def run_training_corpus_experiment(
 def run_class_ratio_experiment(
     train_examples: Sequence[TrainingExample], seed: int, ratios: Sequence[float] = EMPTY_PER_INFORMATIVE_GRID
 ) -> pd.DataFrame:
-    """Size and balance of the training set for each ratio of empty to informative examples."""
+    """Size and balance of the training set for each ratio of empty to informative examples.
+
+    Args:
+        train_examples: Training examples before downsampling.
+        seed: Seed of the sample of empty examples.
+        ratios: Numbers of empty examples kept per informative example.
+
+    Returns:
+        One row per ratio: ``empty_per_informative``, ``examples``, ``informative``,
+        ``empty``, ``informative_share`` and ``epochs_in_20_steps`` (passes over the set in
+        20 optimiser steps of 8 examples).
+    """
     rows = []
     for ratio in ratios:
         selected = downsample_empty_examples(list(train_examples), ratio, seed)
@@ -205,7 +259,15 @@ def run_class_ratio_experiment(
 
 
 def plot_chunk_size_experiment(results: pd.DataFrame) -> Any:
-    """Informative chunks (bars, by field) and their share of all chunks, per chunk size."""
+    """Informative chunks (bars, by field) and their share of all chunks, per chunk size.
+
+    Args:
+        results: Table returned by ``run_chunk_size_experiment``; ``max_tokens``, ``title``,
+            ``authors``, ``problem``, ``metrics`` and ``informative_share`` are read.
+
+    Returns:
+        A Plotly figure with two panels.
+    """
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 

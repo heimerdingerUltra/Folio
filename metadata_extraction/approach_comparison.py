@@ -36,6 +36,13 @@ def build_approach_leaderboard(
 ) -> list[dict[str, Any]]:
     """Score every approach under every answer guard.
 
+    Args:
+        examples: Labelled chunks every approach was run on.
+        answers_by_approach: Approach name -> raw model answers, one per example and in the same
+            order as ``examples``.
+        reference_approach: Key of ``answers_by_approach`` whose unguarded answers are the baseline
+            of the McNemar test.
+
     Returns:
         One row per (approach, guard). ``verifiable_correct`` counts chunks
         whose title, authors and metric figures are all right, with a Wilson
@@ -71,7 +78,15 @@ def build_approach_leaderboard(
 
 
 def select_best_approach(leaderboard: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    """Apply :data:`SELECTION_RULE` and return the winning row."""
+    """Apply :data:`SELECTION_RULE` and return the winning row.
+
+    Args:
+        leaderboard: Non-empty list of rows from :func:`build_approach_leaderboard`. A rate that
+            is ``None`` is ranked as 0.
+
+    Returns:
+        The row ranked first; ties on all rates go to the guard listed first in ``ANSWER_GUARDS``.
+    """
     guard_order = list(ANSWER_GUARDS)
     return min(
         leaderboard,

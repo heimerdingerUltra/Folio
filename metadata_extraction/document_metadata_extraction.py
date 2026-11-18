@@ -94,6 +94,12 @@ def parse_author_names(lines: list[str]) -> list[str]:
     E-mail addresses are removed and affiliation lines skipped; the rest is
     split on commas, "and" and footnote markers, and a segment is kept when
     it reads as two to four capitalised words.
+
+    Args:
+        lines: Text lines of one author block, in reading order.
+
+    Returns:
+        The distinct names, in order of first appearance.
     """
     names: list[str] = []
     for line in lines:
@@ -118,6 +124,13 @@ def locate_abstract(document: ParsedDocument) -> list[tuple[int, TextBlock]]:
 
     They follow the "Abstract" heading up to the next heading. Without such
     a heading, the abstract is the first long paragraph of the first page.
+
+    Args:
+        document: Parsed document; its blocks carry ``block_type``, ``page_number`` and ``text``.
+
+    Returns:
+        ``(reading_order, block)`` pairs, ``reading_order`` being the index of the block in
+        ``document.blocks``. Empty when no abstract is found.
     """
     blocks = list(enumerate(document.blocks))
     for position, (_, block) in enumerate(blocks):
@@ -136,7 +149,15 @@ def locate_abstract(document: ParsedDocument) -> list[tuple[int, TextBlock]]:
 
 
 def locate_author_blocks(document: ParsedDocument) -> list[tuple[int, TextBlock]]:
-    """First-page paragraphs between the title and the abstract."""
+    """First-page paragraphs between the title and the abstract.
+
+    Args:
+        document: Parsed document with typed blocks.
+
+    Returns:
+        ``(reading_order, block)`` pairs for the paragraphs after the last ``title`` block (from
+        the first block when there is none) and before the first abstract paragraph.
+    """
     abstract = locate_abstract(document)
     end = abstract[0][0] if abstract else len(document.blocks)
     title_positions = [index for index, block in enumerate(document.blocks) if block.block_type == "title"]
@@ -149,7 +170,15 @@ def locate_author_blocks(document: ParsedDocument) -> list[tuple[int, TextBlock]
 
 
 def extract_document_metadata(document: ParsedDocument) -> DocumentMetadata:
-    """Read title, authors, problem statement and key metrics from the structure."""
+    """Read title, authors, problem statement and key metrics from the structure.
+
+    Args:
+        document: Parsed document, with typed blocks and the ``title`` set by the layout analysis.
+
+    Returns:
+        The metadata and one evidence entry per extracted value. The problem statement is the
+        first two sentences of the abstract; at most three key metrics are kept.
+    """
     evidence: list[FieldEvidence] = []
 
     title = None
@@ -194,6 +223,13 @@ def select_chunks_worth_reading(chunks: list[dict[str, Any]]) -> list[dict[str, 
     A model that reads chunks does not need the whole paper: first page,
     abstract, introduction, results and conclusion, plus any table or
     prose that quotes a result figure. The bibliography is never read.
+
+    Args:
+        chunks: Chunk records with ``content_type``, ``page_number`` (1-based), ``section`` and
+            ``chunk_text``.
+
+    Returns:
+        The selected chunks, in input order.
     """
     return [
         chunk
@@ -213,6 +249,12 @@ def merge_chunk_metadata(answers: list[PaperMetadata]) -> PaperMetadata:
     The title is the value most chunks agree on (the earliest wins a tie),
     the problem statement is the first one stated, authors and metrics are
     united in order of appearance.
+
+    Args:
+        answers: Metadata extracted from each chunk of one document.
+
+    Returns:
+        The merged record; duplicate authors and metrics are removed by the schema.
     """
     titles = [answer.title for answer in answers if answer.title]
     return PaperMetadata(

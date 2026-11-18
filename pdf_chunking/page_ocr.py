@@ -75,6 +75,16 @@ def recognize_page_lines(page: pymupdf.Page, min_confidence: float = 0.5, dpi: i
 
     Lines scored below ``min_confidence`` are dropped: they are mostly
     noise read from figures and stamps.
+
+    Args:
+        page: The PyMuPDF page to render and read.
+        min_confidence: Lowest recogniser score, in [0, 1], for a line to be kept.
+        dpi: Rendering resolution of the page image, in dots per inch.
+
+    Returns:
+        The recognised lines in the order given by the recogniser, with boxes converted from
+        pixels to page points. Lines of more than 2 characters that are taller than wide
+        (rotated text) are left out.
     """
     import numpy
 
@@ -106,6 +116,13 @@ def group_lines_into_paragraphs(lines: list[OcrLine]) -> list[list[OcrLine]]:
     horizontally, have a similar height and are less than one line apart.
     Lines of two columns at the same height do not overlap horizontally, so
     columns stay separate.
+
+    Args:
+        lines: Recognised lines of one page, in any order.
+
+    Returns:
+        The paragraphs, each a list of lines from top to bottom, ordered by the position of
+        their first line (top to bottom, then left to right).
     """
     paragraphs: list[list[OcrLine]] = []
     for line in sorted(lines, key=lambda line: (line.bbox[1], line.bbox[0])):
@@ -124,5 +141,12 @@ def group_lines_into_paragraphs(lines: list[OcrLine]) -> list[list[OcrLine]]:
 
 
 def estimate_font_size(lines: list[OcrLine]) -> float:
-    """Font size estimated from the median line height, rounded to half a point."""
+    """Font size estimated from the median line height, rounded to half a point.
+
+    Args:
+        lines: Recognised lines of one block; must not be empty.
+
+    Returns:
+        The estimated font size in points: 0.8 times the median line-box height.
+    """
     return round(statistics.median(line.height for line in lines) * _FONT_SIZE_PER_LINE_HEIGHT * 2) / 2

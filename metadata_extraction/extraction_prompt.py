@@ -25,7 +25,16 @@ def _user_turn(chunk_text: str) -> dict[str, str]:
 
 
 def build_chat_messages(chunk_text: str, target: PaperMetadata | None = None) -> list[dict[str, str]]:
-    """User turn (instruction + chunk), plus the assistant answer when ``target`` is given."""
+    """User turn (instruction + chunk), plus the assistant answer when ``target`` is given.
+
+    Args:
+        chunk_text: Text of the chunk to extract from.
+        target: Expected metadata, serialised to JSON as the assistant turn. ``None`` builds an
+            inference prompt made of the user turn only.
+
+    Returns:
+        The messages, each a dict with ``role`` and ``content``.
+    """
     messages = [_user_turn(chunk_text)]
     if target is not None:
         messages.append({"role": "assistant", "content": target.model_dump_json()})
@@ -40,6 +49,14 @@ def select_few_shot_demonstrations(
     Showing both teaches the format *and* that an empty answer is legitimate.
     The shortest candidates are used and truncated: demonstrations compete
     with the query chunk for the context window.
+
+    Args:
+        train_examples: Training examples to choose from.
+        max_chunk_characters: Number of characters each demonstration chunk is truncated to.
+
+    Returns:
+        Up to two examples: the shortest one whose target has a title, then the shortest one
+        with an empty target. A kind without any candidate is omitted.
     """
     def shortest(candidates: list[TrainingExample]) -> TrainingExample:
         """The shortest candidate, its text truncated to the character budget."""
@@ -54,7 +71,16 @@ def select_few_shot_demonstrations(
 
 
 def build_few_shot_messages(chunk_text: str, demonstrations: Sequence[TrainingExample]) -> list[dict[str, str]]:
-    """In-context learning: solved examples as earlier turns, then the query."""
+    """In-context learning: solved examples as earlier turns, then the query.
+
+    Args:
+        chunk_text: Text of the query chunk.
+        demonstrations: Solved examples, each rendered as a user turn and an assistant turn.
+
+    Returns:
+        The messages, each a dict with ``role`` and ``content``, ending with the user turn of
+        the query.
+    """
     messages: list[dict[str, str]] = []
     for demonstration in demonstrations:
         messages.extend(build_chat_messages(demonstration.chunk_text, demonstration.target))

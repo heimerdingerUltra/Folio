@@ -34,7 +34,17 @@ from pdf_chunking.pdf_layout_extraction import PdfExtractionConfig, PdfExtractio
 
 
 def score_documents(reference_by_path: dict[Path, dict]) -> dict:
-    """Title accuracy, author precision / recall and abstract localisation."""
+    """Title accuracy, author precision / recall and abstract localisation.
+
+    Args:
+        reference_by_path: PDF path -> reference record with ``title``, ``authors`` and,
+            optionally, ``abstract``. A PDF that cannot be parsed is reported and skipped.
+
+    Returns:
+        ``documents``, ``title_accuracy``, ``author_precision``, ``author_recall``,
+        ``documents_with_all_authors``, ``abstract_located`` (``"k/n"`` over the references that
+        have an abstract) and ``per_document`` (one row per scored PDF).
+    """
     rows = []
     for path, reference in sorted(reference_by_path.items()):
         try:
@@ -74,7 +84,15 @@ def score_documents(reference_by_path: dict[Path, dict]) -> dict:
 
 
 def score_chunk_routing(chunk_dataset_path: Path) -> dict:
-    """Share of chunks read after routing, and informative chunks kept."""
+    """Share of chunks read after routing, and informative chunks kept.
+
+    Args:
+        chunk_dataset_path: JSON chunk dataset written by ``main.py``.
+
+    Returns:
+        ``chunks``, ``chunks_read``, ``share_read``, ``informative_chunks`` and
+        ``informative_chunks_kept``.
+    """
     chunks = load_chunk_dataset(chunk_dataset_path)
     informative = {example.chunk_id for example in build_grounded_examples(chunks) if not example.target.is_empty}
     selected = {chunk["chunk_id"] for chunk in select_chunks_worth_reading(chunks)}

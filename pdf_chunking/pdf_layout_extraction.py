@@ -105,6 +105,13 @@ def is_layout_model_installed() -> bool:
 def resolve_table_detection_mode(mode: TableDetectionMode) -> Literal["layout", "heuristic", "off"]:
     """Resolve ``auto`` to a concrete backend and check availability.
 
+    Args:
+        mode: Requested table detection: ``auto``, ``layout``, ``heuristic`` or ``off``.
+
+    Returns:
+        ``layout`` or ``heuristic`` for ``auto``, depending on whether ``pymupdf-layout`` is
+        installed; any other mode unchanged.
+
     Raises:
         PdfExtractionError: If ``layout`` is requested but ``pymupdf-layout``
             is not installed.
@@ -605,6 +612,14 @@ def is_two_column_page(blocks: list[TextBlock], page_width: float) -> bool:
     A page is two-column when both halves hold a substantial amount of text
     in blocks about one column wide. Tables are ignored: two small tables
     side by side do not make a page two-column.
+
+    Args:
+        blocks: Blocks of one page, in any order.
+        page_width: Width of the page, in points.
+
+    Returns:
+        True if each half of the page holds at least 300 characters in blocks whose width is
+        between 25% and 55% of ``page_width``.
     """
     middle = page_width / 2
     tolerance = 0.03 * page_width
@@ -628,6 +643,13 @@ def sort_blocks_in_reading_order(blocks: list[TextBlock], page_width: float) -> 
     Single-column pages: top to bottom. Two-column pages: cut into bands by
     the blocks spanning both columns, then left column before right column
     inside each band.
+
+    Args:
+        blocks: Blocks of one page, in any order. The list is not modified.
+        page_width: Width of the page, in points; its middle separates the two columns.
+
+    Returns:
+        A new list with the same blocks in reading order.
     """
     by_position = sorted(blocks, key=lambda block: (round(block.bbox[1]), block.bbox[0]))
     if not is_two_column_page(blocks, page_width):
@@ -937,7 +959,13 @@ def _resolve_block_text(blocks: list[TextBlock]) -> None:
 
 
 def assign_section_paths(blocks: list[TextBlock]) -> None:
-    """Give every block the path of headings that encloses it."""
+    """Give every block the path of headings that encloses it.
+
+    Args:
+        blocks: Blocks of one document in reading order, with ``block_type`` and
+            ``heading_level`` already set. ``section_path`` is set in place; a heading is part
+            of its own path.
+    """
     stack: list[tuple[int, str]] = []
     for block in blocks:
         if block.block_type == "heading":
@@ -948,7 +976,15 @@ def assign_section_paths(blocks: list[TextBlock]) -> None:
 
 
 def is_bibliography_section(section_path: tuple[str, ...]) -> bool:
-    """Return True if ``section_path`` points inside the bibliography."""
+    """Return True if ``section_path`` points inside the bibliography.
+
+    Args:
+        section_path: Enclosing headings, outermost first.
+
+    Returns:
+        True if any heading of the path is "References" or "Bibliography", ignoring case, a
+        leading section number and trailing punctuation.
+    """
     for title in section_path:
         match = _NUMBERED_HEADING_RE.match(title)
         name = (match.group("title") if match else title).lower().strip(" .:")
@@ -1001,6 +1037,15 @@ def _open_pdf_safely(path: Path) -> pymupdf.Document:
 
 def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = None) -> ParsedDocument:
     """Parse one PDF into typed text blocks in reading order.
+
+    Args:
+        path: The PDF file to parse.
+        config: Extraction options. None uses the defaults of ``PdfExtractionConfig``.
+
+    Returns:
+        The parsed document: title, classified blocks with their section paths, located
+        figures, extraction counters and non-fatal warnings. A page that cannot be parsed is
+        skipped and reported in the warnings.
 
     Raises:
         NoTextLayerError: Almost no extractable text (scanned PDF, needs OCR).

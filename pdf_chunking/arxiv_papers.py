@@ -91,6 +91,10 @@ def download_arxiv_papers(output_dir: Path) -> int:
 def parse_arxiv_api_response(xml_text: str | bytes) -> list[dict[str, Any]]:
     """Read title, authors and abstract of each entry of an arXiv API answer.
 
+    Args:
+        xml_text: Atom XML returned by the arXiv API, as text or raw bytes. Entries without an
+            id or title, and the API's ``Error`` entries, are skipped.
+
     Returns:
         One dictionary per paper: ``arxiv_id`` (without version), ``title``,
         ``authors`` (in the paper's order) and ``abstract``, whitespace collapsed.
@@ -118,7 +122,15 @@ def parse_arxiv_api_response(xml_text: str | bytes) -> list[dict[str, Any]]:
 
 
 def fetch_arxiv_metadata(arxiv_ids: tuple[str, ...] | list[str]) -> list[dict[str, Any]]:
-    """Ask the arXiv API for the metadata of ``arxiv_ids`` (one request)."""
+    """Ask the arXiv API for the metadata of ``arxiv_ids`` (one request).
+
+    Args:
+        arxiv_ids: arXiv identifiers such as ``"1706.03762"``, with or without a version suffix.
+
+    Returns:
+        One dictionary per paper the API knows, as built by :func:`parse_arxiv_api_response`.
+        Unknown identifiers are absent, so the list can be shorter than ``arxiv_ids``.
+    """
     query = urllib.parse.urlencode({"id_list": ",".join(arxiv_ids), "max_results": len(arxiv_ids)})
     return parse_arxiv_api_response(_fetch(f"{ARXIV_API_URL}?{query}"))
 
@@ -130,6 +142,11 @@ def download_training_corpus(
 
     ``arxiv_metadata.json`` maps each PDF file name to its title, authors and
     abstract. It is rewritten at each call with the papers actually on disk.
+
+    Args:
+        output_dir: Destination folder for the PDFs and ``arxiv_metadata.json``; created if it
+            does not exist. PDFs already present are not downloaded again.
+        arxiv_ids: arXiv identifiers to download. Defaults to ``TRAINING_CORPUS_ARXIV_IDS``.
 
     Returns:
         The number of papers that could not be downloaded.

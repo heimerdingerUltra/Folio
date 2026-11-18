@@ -51,7 +51,15 @@ class Figure:
 
 
 def find_graphic_regions(page: pymupdf.Page) -> list[BoundingBox]:
-    """Bounding boxes of the raster images and drawing clusters of a page."""
+    """Bounding boxes of the raster images and drawing clusters of a page.
+
+    Args:
+        page: The PyMuPDF page to inspect.
+
+    Returns:
+        ``(x0, y0, x1, y1)`` boxes in points, clipped to the page. Regions with a side under
+        30 points, or covering more than 90% of the page area, are left out.
+    """
     rectangles = [pymupdf.Rect(info["bbox"]) for info in page.get_image_info()]
     rectangles += list(page.cluster_drawings(x_tolerance=6, y_tolerance=6))
     page_area = page.rect.width * page.rect.height
@@ -113,6 +121,14 @@ def match_figures_to_captions(
 
 def export_figure_images(pdf_path: Path | str, figures: list[Figure], output_dir: Path, dpi: int = 150) -> int:
     """Render each figure to ``output_dir/figure_<N>_p<page>.png`` and set its ``image_path``.
+
+    Args:
+        pdf_path: The PDF the figures were found in.
+        figures: Figures to render; each ``bbox`` is clipped to its page. ``image_path`` is set
+            in place to the POSIX form of the written path.
+        output_dir: Destination folder, created if needed. Left untouched when ``figures`` is
+            empty.
+        dpi: Rendering resolution, in dots per inch.
 
     Returns:
         The number of images written.

@@ -123,6 +123,14 @@ def build_logical_units(blocks: list[TextBlock]) -> list[LogicalUnit]:
     * Equation attachment: a displayed equation joins the sentence that
       introduces it, and the "where ..." clause that follows.
     * Caption pairing: a table is merged with its adjacent "Table N" caption.
+
+    Args:
+        blocks: Blocks of one document in reading order, with ``section_path`` already assigned.
+
+    Returns:
+        The units in reading order. Headings and tables stay units of their own; captions and
+        footnotes become ``text`` units with ``is_float`` set; stitched paragraphs span the
+        pages of all the blocks they absorbed.
     """
     # Pair each table with an adjacent, not-yet-used table caption.
     caption_of: dict[int, int] = {}
@@ -267,13 +275,28 @@ class _ChunkDraft:
     has_body: bool = False
 
     def add(self, separator: str, text: str, tokens: int, pages: tuple[int, int]) -> None:
-        """Append a piece of text and update the running totals."""
+        """Append a piece of text and update the running totals.
+
+        Args:
+            separator: String placed before ``text`` when the chunk is rendered; ignored for the
+                first piece of the chunk.
+            text: The piece to append.
+            tokens: Token count of ``text`` alone; one more token is charged for the separator.
+            pages: ``(first, last)`` 1-based pages the piece appears on.
+        """
         self.pieces.append((separator if self.pieces else "", text))
         self.tokens += tokens + 1  # +1 covers the separator's token
         self.pages.extend(pages)
 
     def render(self, skip_overlap: bool = False) -> str:
-        """Return the chunk text, optionally without its overlap prefix."""
+        """Return the chunk text, optionally without its overlap prefix.
+
+        Args:
+            skip_overlap: If True, leave out the leading pieces copied from the previous chunk.
+
+        Returns:
+            The pieces joined with their separators, without leading or trailing whitespace.
+        """
         pieces = self.pieces[self.overlap_pieces :] if skip_overlap else self.pieces
         return "".join(separator + text for separator, text in pieces).strip()
 
@@ -596,6 +619,13 @@ def _cut_fixed_token_windows(blocks: list[TextBlock], config: ChunkingConfig, co
 
 def slugify_document_name(source_document: str) -> str:
     """Return a lowercase identifier derived from a file name.
+
+    Args:
+        source_document: File name of the document; the text after its last dot is dropped.
+
+    Returns:
+        The lowercased stem with each run of characters other than ``a-z`` and ``0-9`` replaced
+        by one underscore, or ``"document"`` if nothing is left.
 
     Example:
         >>> slugify_document_name("Attention_Is_All_You_Need.pdf")

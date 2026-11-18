@@ -36,6 +36,10 @@ def _block_record(block: TextBlock, reading_order: int) -> dict[str, Any]:
 def build_document_structure(document: ParsedDocument) -> dict[str, Any]:
     """Nest the blocks of ``document`` under their headings.
 
+    Args:
+        document: Parsed document whose blocks are in reading order. A heading level below 1 is
+            treated as level 1.
+
     Returns:
         ``{"source_document", "title", "page_count", "sections", "figures"}``.
         ``sections`` is a tree: each node has a ``title``, a ``level``, its
@@ -70,6 +74,13 @@ def render_document_markdown(document: ParsedDocument) -> str:
     Headings keep their depth, tables and equations are fenced so their
     alignment survives, footnotes become quotes, and each exported figure is
     inserted after its caption.
+
+    Args:
+        document: Parsed document. Its title becomes the level-1 heading and ``title`` blocks
+            are not repeated; only figures with an ``image_path`` are linked.
+
+    Returns:
+        The Markdown text, blocks separated by blank lines, ending with a newline.
     """
     figure_by_caption = {(figure.page_number, figure.caption): figure for figure in document.figures}
     parts = [f"# {document.title}"]
@@ -97,6 +108,13 @@ def export_structured_document(pdf_path: Path, document: ParsedDocument, output_
     """Write ``<stem>.json``, ``<stem>.md`` and the figure images of one document.
 
     Image paths are stored relative to ``output_dir`` so the folder can be moved.
+
+    Args:
+        pdf_path: The source PDF, reopened to render the figure areas.
+        document: Parsed form of ``pdf_path``. The ``image_path`` of its figures is updated in
+            place.
+        output_dir: Destination folder, created if needed. Images go to its ``<stem>``
+            subfolder, where ``<stem>`` is the source file name without extension.
 
     Returns:
         The paths written and the number of figure images.

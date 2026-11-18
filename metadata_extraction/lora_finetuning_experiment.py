@@ -388,7 +388,17 @@ class MetadataExtractionExperiment:
         return self
 
     def generate_answer(self, messages: list[dict[str, str]], max_new_tokens: int | None = None) -> str:
-        """Greedy-decode the model's answer to a chat prompt."""
+        """Greedy-decode the model's answer to a chat prompt.
+
+        Args:
+            messages: Chat turns as ``role``/``content`` dicts, rendered with the tokenizer's chat
+                template and followed by the generation prompt.
+            max_new_tokens: Upper bound on generated tokens; None or 0 uses
+                ``config.max_new_tokens``.
+
+        Returns:
+            The generated text after the prompt, without special tokens, stripped.
+        """
         import torch
 
         max_new_tokens = max_new_tokens or self.config.max_new_tokens
@@ -528,6 +538,10 @@ class MetadataExtractionExperiment:
 
     def diagnose_overfitting(self, tolerance: float = 0.05) -> dict[str, Any]:
         """Compare the final validation loss with the best one seen during training.
+
+        Args:
+            tolerance: Relative margin above the best validation loss within which the final
+                loss is still not reported as overfitting (0.05 is 5 %).
 
         Returns:
             ``best_validation_loss``, ``best_validation_step`` and

@@ -61,7 +61,16 @@ def _add_loss_traces(figure: Any, loss_history: list[dict[str, Any]], **subplot:
 
 
 def plot_loss_curves(loss_history: list[dict[str, Any]], title: str) -> Any:
-    """Training and validation loss against the training step."""
+    """Training and validation loss against the training step.
+
+    Args:
+        loss_history: Trainer log entries; an entry with ``loss`` is a training step,
+            one with ``eval_loss`` an evaluation. Both carry ``step``.
+        title: Chart title.
+
+    Returns:
+        A Plotly figure.
+    """
     import plotly.graph_objects as go
 
     figure = go.Figure()
@@ -77,6 +86,15 @@ def plot_search_trials(trials: list[dict[str, Any]], title: str = "Hyperparamete
     ``learning_rate``) or variants of an ablation (``variant``). Points are
     used instead of bars because the losses differ in the second decimal and
     the axis does not start at zero.
+
+    Args:
+        trials: One dict per trial with ``validation_loss``; a trial whose loss is None or
+            absent is left out. A row is labelled with ``variant`` when it has one, otherwise
+            with ``trial``, ``lora_rank``, ``lora_alpha`` and ``learning_rate``.
+        title: Chart title.
+
+    Returns:
+        A Plotly figure with one point per trial, the lowest loss highlighted.
     """
     import plotly.graph_objects as go
 
@@ -117,7 +135,19 @@ def plot_search_trials(trials: list[dict[str, Any]], title: str = "Hyperparamete
 
 
 def plot_approach_leaderboard(leaderboard: list[dict[str, Any]], selected: dict[str, Any]) -> Any:
-    """Forest plot: share of fully correct answers per approach, with 95 % intervals."""
+    """Forest plot: share of fully correct answers per approach, with 95 % intervals.
+
+    Args:
+        leaderboard: One row per approach and answer guard, with ``approach``,
+            ``answer_guard``, ``verifiable_correct_rate`` (0 to 1), ``verifiable_correct_ci95``
+            (low, high), ``verifiable_correct``, ``examples`` and ``invented_value_rate``
+            (None counts as 0).
+        selected: The retained row, matched on ``approach`` and ``answer_guard`` and
+            highlighted; an empty dict highlights nothing.
+
+    Returns:
+        A Plotly figure with one row per approach, the best at the top.
+    """
     import plotly.graph_objects as go
 
     rows = sorted(
@@ -165,7 +195,21 @@ def plot_experiment_dashboard(
     training_metrics: dict[str, Any],
     title: str,
 ) -> Any:
-    """Loss curves, metrics per evaluation, answer validity, run facts."""
+    """Loss curves, metrics per evaluation, answer validity, run facts.
+
+    Args:
+        loss_history: Trainer log entries; an entry with ``loss`` is a training step,
+            one with ``eval_loss`` an evaluation. Both carry ``step``.
+        evaluations: Evaluation label to its metrics: the keys of ``DASHBOARD_METRICS`` (rates
+            between 0 and 1, None shown as n/a) and ``answer_status_counts``, the number of
+            answers per status in ``ANSWER_STATUS_COLOURS``.
+        training_metrics: Facts about the run, listed as a two-column table of names and
+            values.
+        title: Chart title.
+
+    Returns:
+        A Plotly figure with four panels.
+    """
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 

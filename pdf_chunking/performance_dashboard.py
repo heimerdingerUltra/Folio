@@ -57,7 +57,16 @@ def _variables(dark: bool) -> str:
 
 
 def theme_css(root: str) -> str:
-    """Theme rules: light by default, dark from the OS setting or a toggle."""
+    """Theme rules: light by default, dark from the OS setting or a toggle.
+
+    Args:
+        root: CSS selector of the element that carries the theme variables, such as ``:root``
+            for a page or ``svg`` for a standalone chart. Its ``data-theme`` attribute
+            (``light`` or ``dark``) overrides the OS setting.
+
+    Returns:
+        The CSS rules, one per line.
+    """
     return (
         f"{root} {{ color-scheme: light; {_variables(False)} }}\n"
         f"@media (prefers-color-scheme: dark) {{ {root}:not([data-theme='light']) "
@@ -148,6 +157,11 @@ def draw_grouped_bar_chart(
         series: ``(name, colour slot)`` in display order.
         unit: ``"%"`` (values are fractions), ``"s"`` or ``""``.
         maximum: Value at the right edge (default: largest value).
+        width: Width of the chart in pixels, labels and values included.
+        title: Accessible label of the chart (``aria-label``).
+
+    Returns:
+        The chart as an SVG string.
     """
     values = [v for _, row in rows for v in row if v is not None]
     maximum = maximum or (max(values) if values else 1.0) or 1.0
@@ -202,7 +216,19 @@ def draw_column_chart(
     title: str = "",
     x_title: str = "",
 ) -> str:
-    """Single-series column chart (used for the token-length histogram)."""
+    """Single-series column chart (used for the token-length histogram).
+
+    Args:
+        bins: ``(label, value)`` per column, in display order; values are non-negative counts.
+        slot: Colour slot of the columns, a key of ``SERIES_COLOURS``.
+        width: Width of the chart, in pixels.
+        height: Height of the chart, in pixels, axis labels included.
+        title: Accessible name of the chart (``aria-label``); not drawn.
+        x_title: Caption drawn under the horizontal axis; empty for none.
+
+    Returns:
+        The chart as an ``<svg>`` element. Only the tallest column carries its value.
+    """
     maximum = max((value for _, value in bins), default=1.0) or 1.0
     # Round the axis maximum up to a clean tick.
     step = max(1, round(maximum / 4 / 10) * 10) if maximum > 40 else max(1, round(maximum / 4))
@@ -253,6 +279,14 @@ def wrap_chart_as_standalone_svg(chart: str) -> str:
 
     The theme variables and a background card are embedded in the SVG itself,
     because an ``<img>`` cannot inherit the page's CSS.
+
+    Args:
+        chart: An ``<svg>`` element built by :func:`draw_grouped_bar_chart` or
+            :func:`draw_column_chart`, whose ``viewBox`` starts at ``0 0``.
+
+    Returns:
+        The SVG with its own style sheet, a background card and 16 pixels of padding on each
+        side.
     """
     head, body = chart.split(">", 1)
     view_box = head.split('viewBox="')[1].split('"')[0].split()
@@ -274,7 +308,16 @@ def wrap_chart_as_standalone_svg(chart: str) -> str:
 
 
 def collect_quality_chart_rows(report: dict[str, Any]) -> list[tuple[str, list[float | None]]]:
-    """Rows of the structure-vs-baseline quality chart (values are fractions)."""
+    """Rows of the structure-vs-baseline quality chart (values are fractions).
+
+    Args:
+        report: Run report with a ``quality`` entry and, when the fixed-window baseline was
+            run, a ``baseline_quality`` entry.
+
+    Returns:
+        ``(label, [pipeline value, baseline value])`` for the three boundary-integrity rates
+        and the table-integrity rate. A value is None when the report does not hold it.
+    """
     quality, baseline = report["quality"], report.get("baseline_quality")
 
     def pick(source: dict[str, Any] | None, *path: str) -> float | None:
@@ -297,7 +340,18 @@ def collect_quality_chart_rows(report: dict[str, Any]) -> list[tuple[str, list[f
 def collect_retrieval_chart_rows(
     retrieval: dict[str, Any], retriever: str
 ) -> tuple[list[tuple[str, list[float | None]]], list[tuple[str, str]]]:
-    """Rows and series of the retrieval chart for one retriever."""
+    """Rows and series of the retrieval chart for one retriever.
+
+    Args:
+        retrieval: Content of ``retrieval_results.json``; ``results`` maps each retriever to
+            the metrics of each system.
+        retriever: Key of the retriever to chart, as found in ``retrieval["results"]``.
+
+    Returns:
+        ``(rows, series)``. ``rows`` holds Hit@1, Hit@3, Hit@5 and MRR@10 as
+        ``(label, [value per system])``; ``series`` holds ``(system, colour slot)`` in the same
+        order, the ``fixed`` baseline first. Systems absent from ``SYSTEM_SLOTS`` are left out.
+    """
     per_system = retrieval["results"][retriever]
     systems = [name for name in SYSTEM_SLOTS if name in per_system]
     # Keep the baseline first so the eye reads "from" then "to".
@@ -400,7 +454,18 @@ def build_all_charts(
     retrieval: dict[str, Any] | None = None,
     parsers: dict[str, Any] | None = None,
 ) -> dict[str, str]:
-    """Build every chart available from the given data, keyed by name."""
+    """Build every chart available from the given data, keyed by name.
+
+    Args:
+        report: Run report; gives the ``quality`` and ``tokens`` charts.
+        retrieval: Content of ``retrieval_results.json``; gives ``retrieval_dense`` and
+            ``retrieval_tfidf``. None or empty skips them.
+        parsers: Content of ``parser_benchmark.json``; gives the ``parsers`` chart. None or
+            empty skips it.
+
+    Returns:
+        ``{chart name: <svg> element}``, holding only the charts that have data.
+    """
     charts: dict[str, str] = {}
     has_baseline = "baseline_quality" in report
     series = [("Structure-aware (this pipeline)", "s1")] + ([("Fixed-size baseline", "s2")] if has_baseline else [])
@@ -437,7 +502,20 @@ def render_dashboard_html(
     parsers: dict[str, Any] | None = None,
     parameter_sweep: dict[str, Any] | None = None,
 ) -> str:
-    """Render the run report (and optional benchmarks) as an HTML page."""
+    """Render the run report (and optional benchmarks) as an HTML page.
+
+    Args:
+        report: Run report written by the pipeline (``run``, ``config``, ``summary``,
+            ``quality``, ``validation``, ``documents``).
+        retrieval: Content of ``retrieval_results.json``. None leaves out the retrieval
+            section.
+        parsers: Content of ``parser_benchmark.json``. None leaves out the parser section.
+        parameter_sweep: Content of ``chunking_parameter_sweep.json``. None leaves out the
+            chunk size and overlap section.
+
+    Returns:
+        A complete HTML document with its styles, charts and script inline.
+    """
     run, summary, quality = report["run"], report["summary"], report["quality"]
     baseline = report.get("baseline_quality")
     validation = report["validation"]
@@ -663,6 +741,18 @@ def write_performance_dashboard(
 
     Benchmark files (``retrieval_results.json``, ``parser_benchmark.json``,
     ``chunking_parameter_sweep.json``) are read from ``benchmarks_dir`` when present.
+
+    Args:
+        report: Run report written by the pipeline.
+        output: HTML file to write; parent folders are created and an existing file is
+            overwritten.
+        benchmarks_dir: Folder searched for the benchmark files. None, or a missing or
+            unreadable file, leaves out the corresponding section.
+        assets_dir: Folder that receives ``<chart name>.svg`` for each chart; created if
+            needed. None writes no SVG.
+
+    Returns:
+        ``output``, as given.
     """
     retrieval = _load_optional(benchmarks_dir / "retrieval_results.json") if benchmarks_dir else None
     parsers = _load_optional(benchmarks_dir / "parser_benchmark.json") if benchmarks_dir else None
@@ -677,7 +767,14 @@ def write_performance_dashboard(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point; returns the process exit code."""
+    """CLI entry point; returns the process exit code.
+
+    Args:
+        argv: Command-line arguments without the program name. None reads ``sys.argv``.
+
+    Returns:
+        0 once the dashboard is written, 1 if the run report cannot be read.
+    """
     parser = argparse.ArgumentParser(description="Render a run report as an HTML dashboard.")
     parser.add_argument("--report", type=Path, default=Path("results.run_report.json"))
     parser.add_argument("--output", type=Path, default=None, help="Default: <dataset stem>.dashboard.html")

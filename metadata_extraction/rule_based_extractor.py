@@ -38,6 +38,14 @@ def extract_metadata_with_rules(chunk_text: str) -> str:
       authors;
     * a sentence quoting a figure with a known unit is a key metric;
     * the problem statement is never attempted.
+
+    Args:
+        chunk_text: Text of one chunk, line breaks included: the first non-blank line is the
+            title candidate.
+
+    Returns:
+        JSON serialisation of a ``PaperMetadata`` with at most three key metrics and a null
+        problem statement.
     """
     lines = [line.strip() for line in chunk_text.split("\n") if line.strip()]
     is_front_matter = bool(_FRONT_MATTER_HINT_RE.search(chunk_text))

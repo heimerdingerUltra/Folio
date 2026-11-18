@@ -34,6 +34,13 @@ def repair_json_answer(raw_answer: str) -> str:
     Handles prose or code fences around the object, unknown keys, a string
     where a list is expected, and ``null`` lists. Unsalvageable answers are
     returned unchanged (and will be scored as invalid).
+
+    Args:
+        raw_answer: Model output as text.
+
+    Returns:
+        A JSON object with exactly the schema keys, or ``raw_answer`` itself when no JSON object
+        can be read from it.
     """
     match = _JSON_OBJECT_RE.search(raw_answer)
     if not match:
@@ -59,6 +66,13 @@ def remove_ungrounded_fields(metadata: PaperMetadata, chunk_text: str) -> PaperM
     A title or author must appear verbatim (case- and whitespace-insensitive).
     A metric is kept when every number it quotes appears in the chunk; a
     metric without any number cannot be verified and is kept.
+
+    Args:
+        metadata: Parsed model answer.
+        chunk_text: Text of the chunk the answer was produced from.
+
+    Returns:
+        A new record without the ungrounded values; the problem statement is copied as is.
     """
     text = comparison_key(chunk_text)
 
@@ -76,17 +90,42 @@ def remove_ungrounded_fields(metadata: PaperMetadata, chunk_text: str) -> PaperM
 
 
 def keep_answer_unchanged(raw_answer: str, chunk_text: str) -> str:
-    """No guard: the raw model answer."""
+    """No guard: the raw model answer.
+
+    Args:
+        raw_answer: Model output as text.
+        chunk_text: Unused; present so that the function matches :data:`AnswerGuard`.
+
+    Returns:
+        ``raw_answer`` as given.
+    """
     return raw_answer
 
 
 def repair_json_only(raw_answer: str, chunk_text: str) -> str:
-    """JSON repair, no content check."""
+    """JSON repair, no content check.
+
+    Args:
+        raw_answer: Model output as text.
+        chunk_text: Unused; present so that the function matches :data:`AnswerGuard`.
+
+    Returns:
+        The repaired JSON string, or ``raw_answer`` when it cannot be salvaged.
+    """
     return repair_json_answer(raw_answer)
 
 
 def repair_json_and_remove_ungrounded_fields(raw_answer: str, chunk_text: str) -> str:
-    """JSON repair, then the grounding filter."""
+    """JSON repair, then the grounding filter.
+
+    Args:
+        raw_answer: Model output as text.
+        chunk_text: Text of the chunk, against which the extractive values are checked.
+
+    Returns:
+        JSON of the filtered metadata, or the repaired answer as is when it still does not
+        validate against the schema.
+    """
     repaired = repair_json_answer(raw_answer)
     metadata, status = parse_model_answer(repaired)
     if status != "ok" or metadata is None:

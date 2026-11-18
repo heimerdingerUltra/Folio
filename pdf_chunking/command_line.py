@@ -75,6 +75,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
 def build_pipeline_config(args: argparse.Namespace) -> ChunkingPipelineConfig:
     """Translate parsed arguments into a pipeline configuration.
 
+    Args:
+        args: Namespace produced by the parser of :func:`build_argument_parser`. A ``workers``
+            value below 1 is raised to 1.
+
+    Returns:
+        The configuration of the run, with its extraction and chunking options.
+
     Raises:
         ValueError: If the output format or a chunking parameter is invalid.
     """
@@ -103,7 +110,15 @@ def build_pipeline_config(args: argparse.Namespace) -> ChunkingPipelineConfig:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the pipeline; returns the process exit code."""
+    """Run the pipeline; returns the process exit code.
+
+    Args:
+        argv: Command-line arguments without the program name. None reads ``sys.argv``.
+
+    Returns:
+        0 if every document was processed, 1 if some failed, 2 if nothing was exported or the
+        configuration or input path is invalid.
+    """
     args = build_argument_parser().parse_args(argv)
     configure_logging(args.log_level, args.log_file)
     try:

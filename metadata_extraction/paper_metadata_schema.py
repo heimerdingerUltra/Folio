@@ -42,7 +42,17 @@ class PaperMetadata(BaseModel):
 
 
 def parse_model_answer(raw_answer: str) -> tuple[PaperMetadata | None, AnswerStatus]:
-    """Parse a model answer, tolerating text around the JSON object."""
+    """Parse a model answer, tolerating text around the JSON object.
+
+    Args:
+        raw_answer: Model output as text. The span from its first ``{`` to its last ``}`` is
+            parsed.
+
+    Returns:
+        ``(metadata, status)``. ``metadata`` is ``None`` unless ``status`` is ``"ok"``. The other
+        statuses are ``"no_json"`` (no braces found), ``"invalid_json"`` (the span is not JSON)
+        and ``"schema_error"`` (unknown key or wrong type).
+    """
     match = _JSON_OBJECT_RE.search(raw_answer)
     if not match:
         return None, "no_json"

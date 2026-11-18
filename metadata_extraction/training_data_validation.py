@@ -39,6 +39,17 @@ def validate_training_data(
 
     ``validation_examples`` and ``test_examples`` are both held out: neither
     may share a document, a chunk or near-identical text with the training set.
+
+    Args:
+        all_examples: Full labelled set, used for the grounding and gold-coverage checks.
+        train_examples: Examples the model is fitted on.
+        validation_examples: Held-out examples used for model selection.
+        gold_by_document: PDF file name -> gold metadata (``authors``, ``metrics`` with ``text``).
+            ``None`` or an empty dict selects ``GOLD_PAPER_METADATA``.
+        test_examples: Held-out examples used for the final report; none by default.
+
+    Returns:
+        One result per check, always in the same order, whether it passed or not.
     """
     gold_by_document = gold_by_document or GOLD_PAPER_METADATA
     held_out_examples = [*validation_examples, *test_examples]
@@ -130,7 +141,15 @@ def validate_training_data(
 
 
 def raise_if_any_check_failed(checks: Sequence[ValidationCheck]) -> None:
-    """Stop the experiment when the data is not fit for training."""
+    """Stop the experiment when the data is not fit for training.
+
+    Args:
+        checks: Results of :func:`validate_training_data`.
+
+    Raises:
+        TrainingDataValidationError: If at least one check failed. The message lists every
+            failed check with its detail.
+    """
     failed = [check for check in checks if not check.passed]
     if failed:
         raise TrainingDataValidationError("; ".join(f"{check.name} ({check.detail})" for check in failed))
