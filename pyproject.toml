@@ -6,10 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "folio"
 description = "Parse PDFs into RAG-ready chunks and fine-tune a small LLM to extract their metadata."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dynamic = ["version"]
 dependencies = [
-    "pymupdf>=2.1",    # PDF parsing: text spans with geometry and fonts
+    # PDF parsing: text spans with geometry and fonts. PyMuPDF 2 needs Python 3.11.
+    "pymupdf>=2.1; python_version >= '3.11'",
+    "pymupdf>=1.24.10; python_version < '3.11'",
     "pydantic>=2.6",   # chunk and metadata schemas
     "tiktoken>=0.7",   # token counting (regex fallback if unavailable)
     "numpy>=1.26",
@@ -17,11 +19,11 @@ dependencies = [
 
 [project.optional-dependencies]
 # Layout model for table detection (--table-detection layout).
-layout = ["pymupdf-layout>=2.1"]
+layout = ["pymupdf-layout>=2.1; python_version >= '3.11'"]
 # OCR for pages without a text layer (--ocr auto): ONNX models, CPU, no system dependency.
 ocr = ["rapidocr>=3.0", "onnxruntime>=1.17"]
 # Alternative parser (--pdf-parser opendataloader); also needs Java 11+.
-opendataloader = ["opendataloader-pdf>=2.5"]
+opendataloader = ["opendataloader-pdf>=2.5; python_version >= '3.11'"]
 # TF-IDF quality metrics, lexical and dense retrievers.
 benchmarks = ["scikit-learn>=1.4", "sentence-transformers>=3.0"]
 # Data stages of the LoRA experiment. The GPU stack (unsloth, trl, ...) is
