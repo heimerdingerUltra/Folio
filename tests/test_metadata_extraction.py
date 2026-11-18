@@ -267,29 +267,29 @@ def test_data_checks_pass_on_the_sample_dataset(experiment: MetadataExtractionEx
 
 
 def test_exploration_tables_and_figures(experiment: MetadataExtractionExperiment) -> None:
-    import matplotlib
-
-    matplotlib.use("Agg")
     per_document = summarize_chunks_per_document(experiment.chunks)
     assert len(per_document) == 5 and per_document["chunks"].sum() == len(experiment.chunks)
     splits = experiment.splits
     distribution = summarize_label_distribution(splits).set_index("split")
     assert distribution.loc["train", "examples"] == len(experiment.train_examples)
     assert distribution.loc["validation", "documents"] == 1
-    assert len(plot_dataset_overview(experiment.chunks, splits).axes) == 3
+    figure = plot_dataset_overview(experiment.chunks, splits)
+    assert [title.text for title in figure.layout.annotations] == [
+        "Chunk length by content type", "Chunks per document", "Examples supporting each field",
+    ]  # fmt: skip
+    assert {trace.name for trace in figure.data if trace.legendgroup == "split"} == set(splits)
 
 
 def test_experiment_dashboard_renders_from_recorded_results() -> None:
-    import matplotlib
-
-    matplotlib.use("Agg")
     loss_history = [{"step": 1, "loss": 0.98}, {"step": 10, "loss": 0.4}, {"step": 10, "eval_loss": 0.53}]
     evaluations = {
         "before fine-tuning": {"valid_json_rate": 0.25, "author_f1": 0.0, "answer_status_counts": {"schema_error": 6, "ok": 2}},
         "after fine-tuning": {"valid_json_rate": 1.0, "author_f1": 0.96, "answer_status_counts": {"ok": 8}},
     }
     figure = plot_experiment_dashboard(loss_history, evaluations, {"train_runtime_seconds": 208}, "Dashboard")
-    assert len(figure.axes) == 4
+    assert {trace.type for trace in figure.data} == {"scatter", "bar", "table"}
+    assert [trace.name for trace in figure.data if getattr(trace, "legendgroup", None) == "evaluation"] == list(evaluations)
+    assert "train runtime seconds" in figure.data[-1].cells.values[0]
 
 
 def test_overfitting_is_flagged_when_validation_loss_rebounds() -> None:

@@ -58,6 +58,7 @@ from metadata_extraction.behavioural_tests import (
     select_bibliography_chunks,
     select_invariance_cases,
 )
+from metadata_extraction.dataset_exploration import SERIES_BLUE, SERIES_ORANGE, style_figure
 from metadata_extraction.experiment_dashboard import plot_approach_leaderboard, plot_experiment_dashboard
 from metadata_extraction.experiment_tracking import ExperimentTracker
 from metadata_extraction.extraction_evaluation import build_error_analysis, score_extraction_answers
@@ -685,7 +686,7 @@ class MetadataExtractionExperiment:
             {f"test_{name}": value for name, value in self.evaluations.get(FINE_TUNED, {}).items()}
         )
         self.tracker.log_artifact(results_path)
-        self.tracker.log_artifact(directory / "experiment_dashboard.png")
+        self.tracker.log_artifact(directory / "experiment_dashboard.html")
         self.tracker.end_run()
         return self
 
@@ -718,18 +719,19 @@ class MetadataExtractionExperiment:
 
     def plot_loss_curves(self) -> Any:
         """Training loss per step and validation loss per evaluation."""
-        import matplotlib.pyplot as plt
+        import plotly.graph_objects as go
 
         train = [(entry["step"], entry["loss"]) for entry in self.loss_history if "loss" in entry]
         validation = [(entry["step"], entry["eval_loss"]) for entry in self.loss_history if "eval_loss" in entry]
-        figure, axis = plt.subplots(figsize=(7, 3.5))
-        axis.plot(*zip(*train), label="train loss", linewidth=1.8, color="#2a78d6")
-        if validation:
-            axis.plot(*zip(*validation), "o-", label="validation loss (selection paper)", color="#eb6834")
-        axis.set_xlabel("step")
-        axis.set_ylabel("cross-entropy loss")
-        axis.set_title(f"LoRA r={self.config.lora_rank} on {self.config.base_model.split('/')[-1]}")
-        axis.grid(alpha=0.3)
-        axis.legend()
-        figure.tight_layout()
-        return figure
+        figure = go.Figure()
+        for points, name, colour, mode in (
+            (train, "train loss", SERIES_BLUE, "lines"),
+            (validation, "validation loss (selection paper)", SERIES_ORANGE, "lines+markers"),
+        ):
+            if points:
+                steps, losses = zip(*points)
+                figure.add_trace(go.Scatter(x=steps, y=losses, mode=mode, name=name, line={"color": colour, "width": 2}))
+        figure.update_xaxes(title_text="step")
+        figure.update_yaxes(title_text="cross-entropy loss")
+        figure.update_layout(title={"text": f"LoRA r={self.config.lora_rank} on {self.config.base_model.split('/')[-1]}"})
+        return style_figure(figure, height=380, width=760)

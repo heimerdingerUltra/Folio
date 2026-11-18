@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from metadata_extraction.dataset_exploration import SERIES_AQUA, SERIES_BLUE, SERIES_ORANGE
+from metadata_extraction.dataset_exploration import SERIES_AQUA, SERIES_BLUE, SERIES_ORANGE, style_figure
 
 DASHBOARD_METRICS = {
     "valid_json_rate": "valid JSON",
     "title_accuracy": "title",
     "author_f1": "authors (F1)",
-    "key_metric_recall": "metrics\n(recall)",
-    "verifiable_fields_correct_rate": "verifiable\nfields correct",
-    "fully_correct_rate": "fully\ncorrect",
+    "key_metric_recall": "metrics<br>(recall)",
+    "verifiable_fields_correct_rate": "verifiable<br>fields correct",
+    "fully_correct_rate": "fully<br>correct",
 }
 ANSWER_STATUS_COLOURS = {"ok": SERIES_AQUA, "schema_error": "#eda100", "invalid_json": SERIES_ORANGE, "no_json": "#e34948"}
 
@@ -24,86 +24,119 @@ def plot_experiment_dashboard(
     title: str,
 ) -> Any:
     """Loss curves, metrics per evaluation, answer validity, run facts."""
-    import matplotlib.pyplot as plt
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 
-    figure, ((loss_axis, metric_axis), (status_axis, facts_axis)) = plt.subplots(2, 2, figsize=(14, 8))
-    figure.suptitle(title, fontsize=14, fontweight="bold")
+    figure = make_subplots(
+        rows=2,
+        cols=2,
+        specs=[[{"type": "xy"}, {"type": "xy"}], [{"type": "xy"}, {"type": "table"}]],
+        subplot_titles=("Loss", "Extraction quality on the held-out paper", "Answer validity", "Run facts"),
+        vertical_spacing=0.16,
+        horizontal_spacing=0.1,
+    )
 
     train = [(entry["step"], entry["loss"]) for entry in loss_history if "loss" in entry]
     validation = [(entry["step"], entry["eval_loss"]) for entry in loss_history if "eval_loss" in entry]
     if train:
-        loss_axis.plot(*zip(*train), color=SERIES_BLUE, linewidth=1.6, label="train (per step)")
+        steps, losses = zip(*train)
+        figure.add_trace(
+            go.Scatter(x=steps, y=losses, mode="lines", name="train (per step)", line={"color": SERIES_BLUE, "width": 2},
+                       legendgroup="loss"),
+            row=1, col=1,
+        )  # fmt: skip
     if validation:
-        loss_axis.plot(*zip(*validation), "o-", color=SERIES_ORANGE, linewidth=2, label="validation (held-out paper)")
-        loss_axis.annotate(f"{validation[-1][1]:.3f}", validation[-1], textcoords="offset points", xytext=(6, 6))
-    loss_axis.set(title="Loss", xlabel="step", ylabel="cross-entropy")
-    loss_axis.legend(frameon=False)
+        steps, losses = zip(*validation)
+        figure.add_trace(
+            go.Scatter(x=steps, y=losses, mode="lines+markers+text", name="validation (held-out paper)",
+                       line={"color": SERIES_ORANGE, "width": 2.5}, legendgroup="loss",
+                       text=[""] * (len(losses) - 1) + [f"{losses[-1]:.3f}"], textposition="top right"),
+            row=1, col=1,
+        )  # fmt: skip
 
     labels = list(evaluations)
-    width = 0.8 / max(len(labels), 1)
     for offset, label in enumerate(labels):
-        values = [evaluations[label].get(metric) or 0.0 for metric in DASHBOARD_METRICS]
-        positions = [index + offset * width for index in range(len(DASHBOARD_METRICS))]
-        bars = metric_axis.bar(positions, values, width=width, label=label, color=[SERIES_ORANGE, SERIES_BLUE][offset % 2])
-        for bar, metric in zip(bars, DASHBOARD_METRICS):
-            value = evaluations[label].get(metric)
-            metric_axis.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 0.02,
-                "n/a" if value is None else f"{value:.2f}",
-                ha="center",
-                fontsize=8,
-            )
-    metric_axis.set_xticks([index + width * (len(labels) - 1) / 2 for index in range(len(DASHBOARD_METRICS))])
-    metric_axis.set_xticklabels(DASHBOARD_METRICS.values(), fontsize=9)
-    metric_axis.set(title="Extraction quality on the held-out paper", ylim=(0, 1.32))
-    metric_axis.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
-    metric_axis.legend(frameon=False, loc="upper left", ncol=2)
+        values = [evaluations[label].get(metric) for metric in DASHBOARD_METRICS]
+        figure.add_trace(
+            go.Bar(x=list(DASHBOARD_METRICS.values()), y=[value or 0.0 for value in values], name=label,
+                   marker_color=[SERIES_ORANGE, SERIES_BLUE][offset % 2], offsetgroup=label, legendgroup="evaluation",
+                   text=["n/a" if value is None else f"{value:.2f}" for value in values], textposition="outside",
+                   cliponaxis=False),
+            row=1, col=2,
+        )  # fmt: skip
 
-    bottoms = [0] * len(labels)
+    # Same offset group: the statuses of one evaluation are stacked.
     for status, colour in ANSWER_STATUS_COLOURS.items():
         counts = [evaluations[label].get("answer_status_counts", {}).get(status, 0) for label in labels]
         if any(counts):
-            status_axis.barh(labels, counts, left=bottoms, height=0.45, color=colour, label=status, edgecolor="white")
-            bottoms = [bottom + count for bottom, count in zip(bottoms, counts)]
-    status_axis.set(title="Answer validity", xlabel="evaluation chunks")
-    status_axis.legend(frameon=False, ncol=4, loc="lower center", bbox_to_anchor=(0.5, -0.45))
+            figure.add_trace(
+                go.Bar(x=counts, y=labels, orientation="h", name=status, marker_color=colour,
+                       marker_line={"color": "white", "width": 1}, offsetgroup="status", legendgroup="status", width=0.45),
+                row=2, col=1,
+            )  # fmt: skip
 
-    facts_axis.axis("off")
-    facts = [f"{name.replace('_', ' ')}: {value}" for name, value in training_metrics.items()]
-    facts_axis.text(0, 0.95, "Run facts", fontsize=12, fontweight="bold", va="top")
-    facts_axis.text(0, 0.82, "\n".join(facts), fontsize=10.5, va="top", linespacing=1.7)
+    figure.add_trace(
+        go.Table(
+            header={"values": ["", ""], "height": 0, "fill_color": "white", "line_color": "white"},
+            cells={
+                "values": [
+                    [name.replace("_", " ") for name in training_metrics],
+                    [str(value) for value in training_metrics.values()],
+                ],
+                "align": "left",
+                "fill_color": "white",
+                "line_color": "#e6e4df",
+                "height": 26,
+            },
+        ),
+        row=2, col=2,
+    )  # fmt: skip
 
-    for axis in (loss_axis, metric_axis, status_axis):
-        axis.spines[["top", "right"]].set_visible(False)
-        axis.grid(alpha=0.25)
-    figure.tight_layout()
-    return figure
+    figure.update_xaxes(title_text="step", row=1, col=1)
+    figure.update_yaxes(title_text="cross-entropy", row=1, col=1)
+    figure.update_yaxes(range=[0, 1.2], tickvals=[0, 0.25, 0.5, 0.75, 1.0], row=1, col=2)
+    figure.update_xaxes(title_text="evaluation chunks", row=2, col=1)
+    figure.update_layout(barmode="stack", title={"text": f"<b>{title}</b>"}, legend={"orientation": "h", "y": -0.08})
+    return style_figure(figure, height=780)
 
 
 def plot_approach_leaderboard(leaderboard: list[dict[str, Any]], selected: dict[str, Any]) -> Any:
     """Forest plot: share of fully correct answers per approach, with 95 % intervals."""
-    import matplotlib.pyplot as plt
+    import plotly.graph_objects as go
 
     rows = sorted(
         leaderboard, key=lambda row: (row["verifiable_correct_rate"], -(row["invented_value_rate"] or 0.0))
     )
     labels = [f"{row['approach']}  ·  {row['answer_guard']}" for row in rows]
-    figure, axis = plt.subplots(figsize=(11, 0.42 * len(rows) + 1.6))
-    for position, row in enumerate(rows):
+    figure = go.Figure()
+    for label, row in zip(labels, rows):
         is_selected = (row["approach"], row["answer_guard"]) == (selected.get("approach"), selected.get("answer_guard"))
         colour = SERIES_BLUE if is_selected else "#898781"
+        rate = row["verifiable_correct_rate"]
         low, high = row["verifiable_correct_ci95"]
-        axis.plot([low, high], [position, position], color=colour, linewidth=2.2, solid_capstyle="round")
-        axis.plot(row["verifiable_correct_rate"], position, "o", color=colour, markersize=8)
         note = f"{row['verifiable_correct']}/{row['examples']} · invented {row['invented_value_rate'] or 0:.0%}"
-        axis.text(1.03, position, note + ("   ← selected" if is_selected else ""), va="center", fontsize=9,
-                  fontweight="bold" if is_selected else "normal")  # fmt: skip
-    axis.set_yticks(range(len(rows)))
-    axis.set_yticklabels(labels, fontsize=9)
-    axis.set(xlim=(0, 1.0), xlabel="share of test chunks with all verifiable fields correct (95 % Wilson interval)")
-    axis.set_title("Approaches compared on the test paper", loc="left", fontweight="bold")
-    axis.spines[["top", "right"]].set_visible(False)
-    axis.grid(axis="x", alpha=0.25)
-    figure.tight_layout()
+        figure.add_trace(
+            go.Scatter(
+                x=[rate],
+                y=[label],
+                mode="markers",
+                marker={"color": colour, "size": 11},
+                error_x={"type": "data", "symmetric": False, "array": [high - rate], "arrayminus": [rate - low],
+                         "color": colour, "thickness": 2.5, "width": 0},
+                showlegend=False,
+                hovertemplate=f"{label}<br>{rate:.0%} [{low:.0%}, {high:.0%}]<br>{note}<extra></extra>",
+            )
+        )  # fmt: skip
+        figure.add_annotation(
+            x=1.02, xref="paper", y=label, xanchor="left", showarrow=False,
+            text=f"<b>{note}   ← selected</b>" if is_selected else note, font={"size": 11},
+        )  # fmt: skip
+    figure.update_xaxes(
+        range=[0, 1.0],
+        title_text="share of test chunks with all verifiable fields correct (95 % Wilson interval)",
+    )
+    figure.update_yaxes(categoryorder="array", categoryarray=labels, showgrid=False)
+    figure.update_layout(title={"text": "<b>Approaches compared on the test paper</b>", "x": 0})
+    style_figure(figure, height=40 * len(rows) + 150)
+    figure.update_layout(margin={"l": 60, "r": 230, "t": 70, "b": 60})
     return figure

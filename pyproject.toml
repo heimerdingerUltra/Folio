@@ -30,7 +30,7 @@ benchmarks = ["scikit-learn>=1.4", "sentence-transformers>=3.0"]
 # installed separately, on the machine that trains.
 experiment = [
     "pandas>=2.0",
-    "matplotlib>=3.8",
+    "plotly>=5.20",        # interactive charts of the experiment
     "optuna>=3.6",         # random-search fallback without it
     "mlflow-skinny>=2.14", # experiment tracking, local
     "wandb>=0.17",         # experiment tracking, online with WANDB_API_KEY, offline without

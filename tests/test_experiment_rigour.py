@@ -337,10 +337,11 @@ class TestApproachComparison:
         assert runner_up["answer_guard"] == "JSON repair + grounding filter"
 
     def test_leaderboard_plot(self) -> None:
-        pytest.importorskip("matplotlib").use("Agg")
+        pytest.importorskip("plotly")
         board = self.leaderboard()
         figure = plot_approach_leaderboard(board, select_best_approach(board))
-        assert len(figure.axes[0].get_yticklabels()) == len(board)
+        assert len(figure.data) == len(board)
+        assert sum("selected" in annotation.text for annotation in figure.layout.annotations) == 1
 
 
 def test_three_way_split_keeps_papers_apart() -> None:

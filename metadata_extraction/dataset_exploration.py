@@ -46,44 +46,65 @@ def summarize_label_distribution(splits: dict[str, Sequence[TrainingExample]]) -
     return pd.DataFrame(rows)
 
 
+def style_figure(figure: Any, height: int, width: int | None = None) -> Any:
+    """Shared look of every chart: white background, light grid, legend without frame."""
+    figure.update_layout(
+        template="plotly_white",
+        height=height,
+        width=width,
+        margin={"l": 60, "r": 30, "t": 70, "b": 50},
+        font={"size": 12},
+        legend={"bgcolor": "rgba(0,0,0,0)"},
+    )
+    return figure
+
+
 def plot_dataset_overview(chunks: Sequence[dict[str, Any]], splits: dict[str, Sequence[TrainingExample]]) -> Any:
     """Three panels: chunk length by content type, chunks per document, labels per split."""
-    import matplotlib.pyplot as plt
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 
     frame = pd.DataFrame(chunks)
-    figure, (lengths, documents, labels) = plt.subplots(1, 3, figsize=(15, 3.8))
-
-    content_types = [name for name in ("text", "table", "references") if name in set(frame["content_type"])]
-    lengths.hist(
-        [frame.loc[frame["content_type"] == name, "token_count"] for name in content_types],
-        bins=16,
-        stacked=True,
-        label=content_types,
-        color=[SERIES_BLUE, SERIES_ORANGE, SERIES_AQUA][: len(content_types)],
-        edgecolor="white",
+    figure = make_subplots(
+        rows=1,
+        cols=3,
+        subplot_titles=("Chunk length by content type", "Chunks per document", "Examples supporting each field"),
+        horizontal_spacing=0.09,
     )
-    lengths.set(title="Chunk length by content type", xlabel="tokens", ylabel="chunks")
-    lengths.legend(frameon=False)
+
+    # One layout-wide bar mode: "stack" stacks the bars of a same offset group
+    # (the histogram) and puts different groups side by side (the splits).
+    colours = {"text": SERIES_BLUE, "table": SERIES_ORANGE, "references": SERIES_AQUA}
+    for name, colour in colours.items():
+        lengths = frame.loc[frame["content_type"] == name, "token_count"]
+        if len(lengths):
+            figure.add_trace(
+                go.Histogram(x=lengths, name=name, nbinsx=16, marker_color=colour, marker_line={"color": "white", "width": 1},
+                             offsetgroup="length", legendgroup="content"),
+                row=1, col=1,
+            )  # fmt: skip
 
     per_document = frame.groupby("source_document")["chunk_id"].count().sort_values()
-    documents.barh([name.removesuffix(".pdf") for name in per_document.index], per_document.values, color=SERIES_BLUE)
-    for position, value in enumerate(per_document.values):
-        documents.text(value + 1, position, str(value), va="center", fontsize=9)
-    documents.set(title="Chunks per document", xlabel="chunks")
+    figure.add_trace(
+        go.Bar(x=per_document.values, y=[name.removesuffix(".pdf") for name in per_document.index], orientation="h",
+               marker_color=SERIES_BLUE, text=per_document.values, textposition="outside", showlegend=False,
+               offsetgroup="documents", cliponaxis=False),
+        row=1, col=2,
+    )  # fmt: skip
 
     distribution = summarize_label_distribution(splits).set_index("split")
     columns = ["empty", *METADATA_FIELDS]
-    width = 0.8 / len(distribution)
     for offset, (split, row) in enumerate(distribution.iterrows()):
-        positions = [index + offset * width for index in range(len(columns))]
-        labels.bar(positions, row[columns], width=width, label=split, color=[SERIES_BLUE, SERIES_ORANGE][offset % 2])
-    labels.set_xticks([index + width * (len(distribution) - 1) / 2 for index in range(len(columns))])
-    labels.set_xticklabels(["empty", "title", "authors", "problem", "metrics"])
-    labels.set(title="Examples supporting each field", ylabel="examples")
-    labels.legend(frameon=False)
+        figure.add_trace(
+            go.Bar(x=["empty", "title", "authors", "problem", "metrics"], y=[row[column] for column in columns],
+                   name=str(split), marker_color=[SERIES_BLUE, SERIES_ORANGE, SERIES_AQUA][offset % 3],
+                   offsetgroup=str(split), legendgroup="split"),
+            row=1, col=3,
+        )  # fmt: skip
 
-    for axis in (lengths, documents, labels):
-        axis.spines[["top", "right"]].set_visible(False)
-        axis.grid(axis="y" if axis is not documents else "x", alpha=0.25)
-    figure.tight_layout()
-    return figure
+    figure.update_xaxes(title_text="tokens", row=1, col=1)
+    figure.update_yaxes(title_text="chunks", row=1, col=1)
+    figure.update_xaxes(title_text="chunks", row=1, col=2)
+    figure.update_yaxes(title_text="examples", row=1, col=3)
+    figure.update_layout(barmode="stack", legend={"orientation": "h", "y": -0.2})
+    return style_figure(figure, height=400)
