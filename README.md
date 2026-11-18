@@ -15,7 +15,7 @@ Reference run on five arXiv papers: 102 pages, 356 chunks, 97.6K tokens, no fail
 
 ## Usage
 
-Python 3.11 or later (required by PyMuPDF 2.1).
+Python 3.10 to 3.14. On Python 3.10, PyMuPDF 1.x is installed and the `layout` and `opendataloader` extras are unavailable (both need 3.11).
 
 ```bash
 pip install -r requirements.txt
@@ -131,7 +131,7 @@ python -m pytest tests -q
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request:
 
-1. the tests, on Python 3.11 and 3.12;
+1. the tests, on Python 3.10 to 3.14;
 2. the build of the wheel and the source distribution, checked with `twine`, then installed in a
    clean environment where the `process-pdfs` command is run;
 3. the upload of both files as the `dist` artifact of the run.
