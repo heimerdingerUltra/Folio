@@ -1,0 +1,375 @@
+{
+  "run": {
+    "run_id": "9147504e8323",
+    "status": "success",
+    "started_at": "2026-11-16T17:16:26+00:00",
+    "duration_seconds": 315.859,
+    "output_file": "results.json"
+  },
+  "config": {
+    "input_path": "data",
+    "output_path": "results.json",
+    "extraction": {
+      "table_detection": "auto",
+      "skip_pages_without_table_signals": true,
+      "drop_text_inside_figures": true,
+      "min_chars_per_page": 25
+    },
+    "chunking": {
+      "strategy": "structure",
+      "max_tokens": 400,
+      "overlap_tokens": 50,
+      "min_tokens": 40,
+      "encoding_name": "cl100k_base"
+    }
+  },
+  "environment": {
+    "pipeline": "1.0.0",
+    "python": "3.14.7",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "pymupdf": "2.1",
+    "pymupdf-layout": "2.1",
+    "pydantic": "2.14.1",
+    "tiktoken": "0.14.0",
+    "scikit-learn": "1.9.1"
+  },
+  "summary": {
+    "documents_found": 5,
+    "documents_processed": 5,
+    "documents_failed": 0,
+    "error_rate": 0.0,
+    "pages": 102,
+    "chunks": 356,
+    "tokens": 97564,
+    "chunks_per_document": {
+      "count": 5,
+      "mean": 71.2,
+      "median": 69,
+      "std": 24.7,
+      "cv": 0.347,
+      "min": 38,
+      "max": 99,
+      "p05": 40.6,
+      "p95": 99.0
+    },
+    "extraction_seconds": 300.396,
+    "chunking_seconds": 1.383,
+    "pages_per_second": 0.34
+  },
+  "quality": {
+    "token_length": {
+      "count": 356,
+      "mean": 274.1,
+      "median": 305.5,
+      "std": 100.0,
+      "cv": 0.365,
+      "min": 29,
+      "max": 398,
+      "p05": 96.5,
+      "p95": 389.0
+    },
+    "token_histogram": {
+      "0-49": 4,
+      "50-99": 17,
+      "100-149": 39,
+      "150-199": 37,
+      "200-249": 36,
+      "250-299": 39,
+      "300-349": 66,
+      "350-399": 118
+    },
+    "within_size_range_rate": 0.994,
+    "content_types": {
+      "text": 199,
+      "table": 91,
+      "references": 66
+    },
+    "boundary_integrity": {
+      "chunks_scored": 199,
+      "clean_start_rate": 0.98,
+      "clean_end_rate": 0.905,
+      "clean_both_rate": 0.884
+    },
+    "table_integrity": {
+      "tables": 56,
+      "intact": 39,
+      "intact_rate": 0.696
+    },
+    "lexical_cohesion": {
+      "available": true,
+      "chunks_scored": 199,
+      "intra_chunk_similarity": 0.223,
+      "adjacent_chunk_similarity": 0.229,
+      "cohesion_gap": -0.006
+    },
+    "exact_duplicate_chunks": 0
+  },
+  "validation": {
+    "is_valid": true,
+    "records_checked": 356,
+    "schema_errors": 0,
+    "duplicate_ids": 0,
+    "documents_with_non_contiguous_indices": 0,
+    "chunks_over_token_budget": 0,
+    "errors": []
+  },
+  "documents": [
+    {
+      "source_document": "Attention_Is_All_You_Need.pdf",
+      "status": "ok",
+      "error": null,
+      "title": "Attention Is All You Need",
+      "pages": 15,
+      "extraction": {
+        "table_finder_pages": 11,
+        "table_finder_pages_skipped": 4,
+        "tables_detected": 4,
+        "header_footer_blocks_dropped": 14,
+        "figure_text_blocks_dropped": 2,
+        "blocks_paragraph": 162,
+        "blocks_title": 1,
+        "blocks_heading": 24,
+        "blocks_footnote": 4,
+        "blocks_caption": 9,
+        "blocks_equation": 8,
+        "blocks_table": 4,
+        "table_backend": "layout",
+        "body_font_size": 10.0,
+        "characters": 38506,
+        "two_column_pages": 0,
+        "pages_without_text": 0,
+        "pages_failed": 0
+      },
+      "warnings": [],
+      "extraction_seconds": 36.858,
+      "chunking_seconds": 0.902,
+      "chunks": 38,
+      "chunks_rejected_by_validation": 0,
+      "token_length": {
+        "count": 38,
+        "mean": 264.6,
+        "median": 307.5,
+        "std": 107.7,
+        "cv": 0.407,
+        "min": 67,
+        "max": 392,
+        "p05": 100.4,
+        "p95": 390.1
+      }
+    },
+    {
+      "source_document": "ChunkNorris.pdf",
+      "status": "ok",
+      "error": null,
+      "title": "ChunkNorris: A High-Performance and Low-Energy Approach to PDF Parsing and Chunking",
+      "pages": 15,
+      "extraction": {
+        "table_finder_pages_skipped": 7,
+        "two_column_pages": 9,
+        "table_finder_pages": 8,
+        "tables_detected": 12,
+        "header_footer_blocks_dropped": 15,
+        "figure_text_blocks_dropped": 36,
+        "blocks_title": 2,
+        "blocks_paragraph": 92,
+        "blocks_heading": 17,
+        "blocks_footnote": 20,
+        "blocks_table": 12,
+        "blocks_caption": 11,
+        "blocks_equation": 1,
+        "table_backend": "layout",
+        "body_font_size": 11.0,
+        "characters": 49748,
+        "pages_without_text": 0,
+        "pages_failed": 0
+      },
+      "warnings": [],
+      "extraction_seconds": 34.392,
+      "chunking_seconds": 0.078,
+      "chunks": 51,
+      "chunks_rejected_by_validation": 0,
+      "token_length": {
+        "count": 51,
+        "mean": 274.7,
+        "median": 331,
+        "std": 114.6,
+        "cv": 0.417,
+        "min": 45,
+        "max": 393,
+        "p05": 86.0,
+        "p95": 389.0
+      }
+    },
+    {
+      "source_document": "LLaMA.pdf",
+      "status": "ok",
+      "error": null,
+      "title": "LLaMA: Open and Efficient Foundation Language Models",
+      "pages": 27,
+      "extraction": {
+        "table_finder_pages_skipped": 5,
+        "two_column_pages": 15,
+        "table_finder_pages": 22,
+        "tables_detected": 17,
+        "figure_text_blocks_dropped": 62,
+        "blocks_title": 1,
+        "blocks_paragraph": 351,
+        "blocks_heading": 30,
+        "blocks_footnote": 6,
+        "blocks_table": 17,
+        "blocks_caption": 19,
+        "blocks_equation": 1,
+        "table_backend": "layout",
+        "body_font_size": 11.0,
+        "characters": 88937,
+        "pages_without_text": 0,
+        "pages_failed": 0
+      },
+      "warnings": [],
+      "extraction_seconds": 73.227,
+      "chunking_seconds": 0.161,
+      "chunks": 99,
+      "chunks_rejected_by_validation": 0,
+      "token_length": {
+        "count": 99,
+        "mean": 280.3,
+        "median": 313,
+        "std": 94.4,
+        "cv": 0.337,
+        "min": 71,
+        "max": 398,
+        "p05": 107.9,
+        "p95": 387.2
+      }
+    },
+    {
+      "source_document": "LoRA.pdf",
+      "status": "ok",
+      "error": null,
+      "title": "LORA: LOW-RANK ADAPTATION OF LARGE LANGUAGE MODELS",
+      "pages": 26,
+      "extraction": {
+        "table_finder_pages": 21,
+        "table_finder_pages_skipped": 5,
+        "tables_detected": 18,
+        "header_footer_blocks_dropped": 26,
+        "figure_text_blocks_dropped": 124,
+        "blocks_title": 1,
+        "blocks_paragraph": 236,
+        "blocks_heading": 39,
+        "blocks_caption": 26,
+        "blocks_footnote": 7,
+        "blocks_equation": 10,
+        "blocks_table": 18,
+        "table_backend": "layout",
+        "body_font_size": 10.0,
+        "characters": 83354,
+        "two_column_pages": 0,
+        "pages_without_text": 0,
+        "pages_failed": 0
+      },
+      "warnings": [],
+      "extraction_seconds": 134.933,
+      "chunking_seconds": 0.141,
+      "chunks": 99,
+      "chunks_rejected_by_validation": 0,
+      "token_length": {
+        "count": 99,
+        "mean": 275.6,
+        "median": 301,
+        "std": 96.7,
+        "cv": 0.351,
+        "min": 30,
+        "max": 395,
+        "p05": 93.8,
+        "p95": 386.1
+      }
+    },
+    {
+      "source_document": "RAG.pdf",
+      "status": "ok",
+      "error": null,
+      "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "pages": 19,
+      "extraction": {
+        "table_finder_pages_skipped": 13,
+        "table_finder_pages": 6,
+        "tables_detected": 5,
+        "header_footer_blocks_dropped": 18,
+        "figure_text_blocks_dropped": 50,
+        "blocks_title": 2,
+        "blocks_paragraph": 213,
+        "blocks_heading": 33,
+        "blocks_caption": 11,
+        "blocks_footnote": 2,
+        "blocks_equation": 6,
+        "blocks_table": 5,
+        "table_backend": "layout",
+        "body_font_size": 10.0,
+        "characters": 68453,
+        "two_column_pages": 0,
+        "pages_without_text": 0,
+        "pages_failed": 0
+      },
+      "warnings": [],
+      "extraction_seconds": 20.986,
+      "chunking_seconds": 0.101,
+      "chunks": 69,
+      "chunks_rejected_by_validation": 0,
+      "token_length": {
+        "count": 69,
+        "mean": 267.7,
+        "median": 301,
+        "std": 95.4,
+        "cv": 0.356,
+        "min": 29,
+        "max": 393,
+        "p05": 122.4,
+        "p95": 384.0
+      }
+    }
+  ],
+  "baseline_quality": {
+    "token_length": {
+      "count": 260,
+      "mean": 396.1,
+      "median": 400.0,
+      "std": 28.0,
+      "cv": 0.071,
+      "min": 71,
+      "max": 400,
+      "p05": 396.0,
+      "p95": 400.0
+    },
+    "token_histogram": {
+      "50-99": 1,
+      "100-149": 1,
+      "300-349": 2,
+      "350-399": 112,
+      "400-449": 144
+    },
+    "within_size_range_rate": 1.0,
+    "content_types": {
+      "text": 260
+    },
+    "boundary_integrity": {
+      "chunks_scored": 260,
+      "clean_start_rate": 0.4,
+      "clean_end_rate": 0.085,
+      "clean_both_rate": 0.042
+    },
+    "table_integrity": {
+      "tables": 56,
+      "intact": 27,
+      "intact_rate": 0.482
+    },
+    "lexical_cohesion": {
+      "available": true,
+      "chunks_scored": 260,
+      "intra_chunk_similarity": 0.183,
+      "adjacent_chunk_similarity": 0.358,
+      "cohesion_gap": -0.175
+    },
+    "exact_duplicate_chunks": 0
+  }
+}

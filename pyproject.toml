@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "folio"
+description = "Parse PDFs into RAG-ready chunks and fine-tune a small LLM to extract their metadata."
+readme = "README.md"
+requires-python = ">=3.10"
+dynamic = ["version"]
+dependencies = [
+    "pymupdf>=2.1",    # PDF parsing: text spans with geometry and fonts
+    "pydantic>=2.6",   # chunk and metadata schemas
+    "tiktoken>=0.7",   # token counting (regex fallback if unavailable)
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# Layout model for table detection (--table-detection layout).
+layout = ["pymupdf-layout>=2.1"]
+# Alternative parser (--pdf-parser opendataloader); also needs Java 11+.
+opendataloader = ["opendataloader-pdf>=2.5"]
+# TF-IDF quality metrics, lexical and dense retrievers.
+benchmarks = ["scikit-learn>=1.4", "sentence-transformers>=3.0"]
+# Data stages of the LoRA experiment. The GPU stack (unsloth, trl, ...) is
+# installed separately, on the machine that trains.
+experiment = [
+    "pandas>=2.0",
+    "matplotlib>=3.8",
+    "optuna>=3.6",         # random-search fallback without it
+    "mlflow-skinny>=2.14", # experiment tracking, local
+    "wandb>=0.17",         # experiment tracking, online with WANDB_API_KEY, offline without
+]
+all = ["folio[layout,opendataloader,benchmarks,experiment]"]
+dev = [
+    "pytest>=8.0",
+    "pdfplumber>=0.11", # scripts/benchmark_pdf_parsers.py
+    "pypdf>=4.0",       # scripts/benchmark_pdf_parsers.py
+]
+
+[project.scripts]
+process-pdfs = "pdf_chunking.command_line:main"
+download-arxiv-papers = "pdf_chunking.arxiv_papers:main"
+
+[project.urls]
+Repository = "https://github.com/heimerdingerUltra/Folio"
+
+[tool.setuptools]
+packages = ["pdf_chunking", "metadata_extraction"]
+
+[tool.setuptools.dynamic]
+version = { attr = "pdf_chunking.__version__" }
+
+[tool.setuptools.package-data]
+pdf_chunking = ["retrieval_questions.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

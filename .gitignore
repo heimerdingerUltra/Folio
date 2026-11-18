@@ -1,0 +1,29 @@
+# Source PDFs are re-downloadable: python scripts/download_arxiv_papers.py
+data/*.pdf
+
+# Run artefacts (the sample outputs results.* ARE committed)
+logs/
+training_outputs/
+lora_metadata_adapter/
+mlruns/
+wandb/
+
+# Parsed-document cache of scripts/tune_chunking_parameters.py
+.cache/
+
+# Python
+__pycache__/
+*.egg-info/
+build/
+dist/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS / editors / local tooling
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,38 @@
+{
+  "n_pdfs": 5,
+  "n_pages": 102,
+  "parsers": [
+    {
+      "parser": "PyMuPDF (get_text)",
+      "seconds": 1.14,
+      "chars": 328893,
+      "ligatures": 453,
+      "hyphen_breaks": 608,
+      "column_flow": "4/4"
+    },
+    {
+      "parser": "pdfplumber",
+      "seconds": 37.48,
+      "chars": 303843,
+      "ligatures": 0,
+      "hyphen_breaks": 489,
+      "column_flow": "1/4"
+    },
+    {
+      "parser": "pypdf",
+      "seconds": 13.76,
+      "chars": 328777,
+      "ligatures": 453,
+      "hyphen_breaks": 607,
+      "column_flow": "4/4"
+    },
+    {
+      "parser": "this pipeline (PyMuPDF + layout logic)",
+      "seconds": 2.0,
+      "chars": 321943,
+      "ligatures": 0,
+      "hyphen_breaks": 61,
+      "column_flow": "4/4"
+    }
+  ]
+}

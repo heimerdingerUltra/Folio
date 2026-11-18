@@ -1,0 +1,49 @@
+{
+  "description": "Retrieval benchmark over the five papers. A chunk is RELEVANT to a question when it belongs to `document` and contains every string of at least one group in `evidence` (case- and whitespace-insensitive). Relevance is defined on the text, not on chunk ids, so the same questions score any chunking strategy. Questions name the paper or method they are about, as a user of a multi-document index would.",
+  "questions": [
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "What BLEU score does the big Transformer reach on WMT 2014 English-to-German translation?", "evidence": [["28.4", "English-to-German"]]},
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "Which dropout rate is applied in the base Transformer model?", "evidence": [["Pdrop = 0.1"]]},
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "How long did it take to train the big Transformer model and on which GPUs?", "evidence": [["3.5 days"]]},
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "Why does scaled dot-product attention divide by the square root of the key dimension?", "evidence": [["extremely small gradients"]]},
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "What amount of label smoothing was used to train the Transformer?", "evidence": [["label smoothing of value"]]},
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "How does the Transformer inject token order without recurrence or convolution?", "evidence": [["sine and cosine functions"]]},
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "Which beam size and length penalty does the Transformer use for translation decoding?", "evidence": [["beam size of 4"]]},
+    {"document": "Attention_Is_All_You_Need.pdf", "question": "How many parallel attention heads does the Transformer use?", "evidence": [["h = 8 parallel attention layers"]]},
+
+    {"document": "LLaMA.pdf", "question": "What fraction of LLaMA's pre-training data comes from CommonCrawl?", "evidence": [["CommonCrawl", "67"]]},
+    {"document": "LLaMA.pdf", "question": "Which normalization function does LLaMA use and where is it applied?", "evidence": [["RMSNorm"]]},
+    {"document": "LLaMA.pdf", "question": "Which activation function replaces ReLU in LLaMA?", "evidence": [["SwiGLU"]]},
+    {"document": "LLaMA.pdf", "question": "What kind of positional embeddings does LLaMA use?", "evidence": [["rotary positional embeddings"]]},
+    {"document": "LLaMA.pdf", "question": "On how many tokens were the largest LLaMA models trained?", "evidence": [["1.4T tokens"]]},
+    {"document": "LLaMA.pdf", "question": "How many GPUs were used to train LLaMA-65B and how long did it take?", "evidence": [["2048 A100"]]},
+    {"document": "LLaMA.pdf", "question": "Which tokenizer implementation does LLaMA use?", "evidence": [["SentencePiece"]]},
+    {"document": "LLaMA.pdf", "question": "What are the estimated carbon emissions of developing the LLaMA models?", "evidence": [["tCO2eq"]]},
+
+    {"document": "LoRA.pdf", "question": "By what factor does LoRA reduce the number of trainable parameters compared with fine-tuning GPT-3?", "evidence": [["10,000 times"]]},
+    {"document": "LoRA.pdf", "question": "How are the LoRA matrices A and B initialised?", "evidence": [["random Gaussian initialization for A and zero for B"]]},
+    {"document": "LoRA.pdf", "question": "Does LoRA add latency at inference time?", "evidence": [["no additional inference latency"], ["No Additional Inference Latency"], ["introduce any additional latency"]]},
+    {"document": "LoRA.pdf", "question": "What is the modified forward pass of a layer adapted with LoRA?", "evidence": [["W0x + BAx"]]},
+    {"document": "LoRA.pdf", "question": "How does LoRA's alpha scaling factor relate to the learning rate?", "evidence": [["tuning α is roughly the same as tuning the learning rate"]]},
+    {"document": "LoRA.pdf", "question": "How much smaller do GPT-3 checkpoints become with LoRA?", "evidence": [["35MB"]]},
+    {"document": "LoRA.pdf", "question": "Which weight matrices of the Transformer does LoRA adapt?", "evidence": [["only adapting the attention weights"]]},
+    {"document": "LoRA.pdf", "question": "What is the drawback of adapter layers according to the LoRA paper?", "evidence": [["Adapter Layers Introduce Inference Latency"], ["INFERENCE LATENCY INTRODUCED BY ADAPTER LAYERS"]]},
+
+    {"document": "RAG.pdf", "question": "Which retriever does the RAG model use?", "evidence": [["Dense Passage Retriever"], ["Retriever: DPR"]]},
+    {"document": "RAG.pdf", "question": "Which sequence-to-sequence generator does RAG use?", "evidence": [["BART-large"]]},
+    {"document": "RAG.pdf", "question": "How many documents does the Wikipedia index used by RAG contain?", "evidence": [["21M"]]},
+    {"document": "RAG.pdf", "question": "How are Wikipedia articles split before being indexed for RAG?", "evidence": [["100-word chunks"]]},
+    {"document": "RAG.pdf", "question": "What exact match score does RAG-Sequence obtain on Natural Questions?", "evidence": [["44.5"]]},
+    {"document": "RAG.pdf", "question": "Can the knowledge of a RAG model be updated without retraining it?", "evidence": [["hot-swapping"], ["index hot-swapping"]]},
+    {"document": "RAG.pdf", "question": "Which component of RAG is kept fixed during fine-tuning?", "evidence": [["keep the document encoder (and index) fixed"]]},
+    {"document": "RAG.pdf", "question": "How does RAG-Token differ from RAG-Sequence?", "evidence": [["RAG-Token Model"]]},
+
+    {"document": "ChunkNorris.pdf", "question": "How long does ChunkNorris take to parse a document on average?", "evidence": [["105 ms"]]},
+    {"document": "ChunkNorris.pdf", "question": "Which embedding models are used in the ChunkNorris retrieval benchmark?", "evidence": [["arctic-embed"]]},
+    {"document": "ChunkNorris.pdf", "question": "How is energy consumption computed in the ChunkNorris benchmark?", "evidence": [["where E is the energy consumed"]]},
+    {"document": "ChunkNorris.pdf", "question": "How much CPU energy does the ChunkNorris parser consume?", "evidence": [["0.47 Wh"]]},
+    {"document": "ChunkNorris.pdf", "question": "Which length-based text splitter from LangChain is commonly used for chunking?", "evidence": [["recursive character text splitter"]]},
+    {"document": "ChunkNorris.pdf", "question": "Why is the use of machine-learning PDF parsers limited in production?", "evidence": [["high processing time"]]},
+    {"document": "ChunkNorris.pdf", "question": "What is the purpose of chunking in a retrieval-augmented generation system?", "evidence": [["semantically coherent units"]]},
+    {"document": "ChunkNorris.pdf", "question": "Why was the PDF format invented?", "evidence": [["encapsulate documents"]]}
+  ]
+}

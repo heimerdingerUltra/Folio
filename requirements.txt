@@ -1,0 +1,5 @@
+# Everything needed to run the pipeline, the benchmarks, the experiment's data
+# stages and the tests from a checkout. Dependencies are declared once, in
+# pyproject.toml; versions of the reference run are recorded in
+# results.run_report.json ("environment").
+-e .[all,dev]
