@@ -27,3 +27,6 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Extra training papers: download-arxiv-papers --training-corpus
+data/training_corpus/

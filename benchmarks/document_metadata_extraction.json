@@ -1,0 +1,374 @@
+{
+  "extraction": {
+    "documents": 45,
+    "title_accuracy": 0.978,
+    "author_precision": 0.956,
+    "author_recall": 0.922,
+    "documents_with_all_authors": 28,
+    "abstract_located": "38/40",
+    "per_document": [
+      {
+        "document": "Attention_Is_All_You_Need.pdf",
+        "title_correct": true,
+        "authors_expected": 8,
+        "authors_predicted": 7,
+        "authors_correct": 7
+      },
+      {
+        "document": "ChunkNorris.pdf",
+        "title_correct": true,
+        "authors_expected": 3,
+        "authors_predicted": 4,
+        "authors_correct": 3
+      },
+      {
+        "document": "LLaMA.pdf",
+        "title_correct": true,
+        "authors_expected": 14,
+        "authors_predicted": 14,
+        "authors_correct": 14
+      },
+      {
+        "document": "LoRA.pdf",
+        "title_correct": true,
+        "authors_expected": 8,
+        "authors_predicted": 8,
+        "authors_correct": 8
+      },
+      {
+        "document": "RAG.pdf",
+        "title_correct": true,
+        "authors_expected": 12,
+        "authors_predicted": 12,
+        "authors_correct": 12
+      },
+      {
+        "document": "arxiv_1301_3781.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 4,
+        "authors_correct": 4,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1312_6114.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 3,
+        "authors_correct": 1,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1406_2661.pdf",
+        "title_correct": false,
+        "authors_expected": 8,
+        "authors_predicted": 9,
+        "authors_correct": 8,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1409_0473.pdf",
+        "title_correct": true,
+        "authors_expected": 3,
+        "authors_predicted": 3,
+        "authors_correct": 3,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1409_3215.pdf",
+        "title_correct": true,
+        "authors_expected": 3,
+        "authors_predicted": 3,
+        "authors_correct": 3,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1412_6980.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 2,
+        "authors_correct": 1,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1502_03167.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 1,
+        "authors_correct": 1,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1503_02531.pdf",
+        "title_correct": true,
+        "authors_expected": 3,
+        "authors_predicted": 4,
+        "authors_correct": 3,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1508_04025.pdf",
+        "title_correct": true,
+        "authors_expected": 3,
+        "authors_predicted": 3,
+        "authors_correct": 3,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1512_03385.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 4,
+        "authors_correct": 4,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1607_06450.pdf",
+        "title_correct": true,
+        "authors_expected": 3,
+        "authors_predicted": 3,
+        "authors_correct": 3,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1711_05101.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 2,
+        "authors_correct": 2,
+        "abstract_located": false
+      },
+      {
+        "document": "arxiv_1802_05365.pdf",
+        "title_correct": true,
+        "authors_expected": 7,
+        "authors_predicted": 7,
+        "authors_correct": 7,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1810_04805.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 4,
+        "authors_correct": 4,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1902_00751.pdf",
+        "title_correct": true,
+        "authors_expected": 8,
+        "authors_predicted": 5,
+        "authors_correct": 5,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1906_08237.pdf",
+        "title_correct": true,
+        "authors_expected": 6,
+        "authors_predicted": 6,
+        "authors_correct": 6,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1907_11692.pdf",
+        "title_correct": true,
+        "authors_expected": 10,
+        "authors_predicted": 10,
+        "authors_correct": 10,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1908_10084.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 2,
+        "authors_correct": 2,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1909_11942.pdf",
+        "title_correct": true,
+        "authors_expected": 6,
+        "authors_predicted": 6,
+        "authors_correct": 6,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1910_01108.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 5,
+        "authors_correct": 4,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1910_10683.pdf",
+        "title_correct": true,
+        "authors_expected": 9,
+        "authors_predicted": 9,
+        "authors_correct": 9,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1910_13461.pdf",
+        "title_correct": true,
+        "authors_expected": 8,
+        "authors_predicted": 8,
+        "authors_correct": 8,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_1911_05722.pdf",
+        "title_correct": true,
+        "authors_expected": 5,
+        "authors_predicted": 5,
+        "authors_correct": 5,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2002_05709.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 4,
+        "authors_correct": 4,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2003_10555.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 4,
+        "authors_correct": 4,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2004_04906.pdf",
+        "title_correct": true,
+        "authors_expected": 8,
+        "authors_predicted": 7,
+        "authors_correct": 7,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2004_12832.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 1,
+        "authors_correct": 0,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2006_11239.pdf",
+        "title_correct": true,
+        "authors_expected": 3,
+        "authors_predicted": 4,
+        "authors_correct": 3,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2007_01282.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 2,
+        "authors_correct": 2,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2010_11929.pdf",
+        "title_correct": true,
+        "authors_expected": 12,
+        "authors_predicted": 12,
+        "authors_correct": 12,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2101_00190.pdf",
+        "title_correct": true,
+        "authors_expected": 2,
+        "authors_predicted": 1,
+        "authors_correct": 1,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2104_09864.pdf",
+        "title_correct": true,
+        "authors_expected": 6,
+        "authors_predicted": 7,
+        "authors_correct": 6,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2111_06377.pdf",
+        "title_correct": true,
+        "authors_expected": 6,
+        "authors_predicted": 2,
+        "authors_correct": 2,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2112_10752.pdf",
+        "title_correct": true,
+        "authors_expected": 5,
+        "authors_predicted": 3,
+        "authors_correct": 3,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2201_11903.pdf",
+        "title_correct": true,
+        "authors_expected": 9,
+        "authors_predicted": 7,
+        "authors_correct": 6,
+        "abstract_located": false
+      },
+      {
+        "document": "arxiv_2203_15556.pdf",
+        "title_correct": true,
+        "authors_expected": 22,
+        "authors_predicted": 22,
+        "authors_correct": 22,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2205_14135.pdf",
+        "title_correct": true,
+        "authors_expected": 5,
+        "authors_predicted": 5,
+        "authors_correct": 5,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2210_03629.pdf",
+        "title_correct": true,
+        "authors_expected": 7,
+        "authors_predicted": 7,
+        "authors_correct": 7,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2212_10496.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 4,
+        "authors_correct": 4,
+        "abstract_located": true
+      },
+      {
+        "document": "arxiv_2305_14314.pdf",
+        "title_correct": true,
+        "authors_expected": 4,
+        "authors_predicted": 4,
+        "authors_correct": 4,
+        "abstract_located": true
+      }
+    ]
+  },
+  "chunk_routing": {
+    "chunks": 356,
+    "chunks_read": 219,
+    "share_read": 0.615,
+    "informative_chunks": 27,
+    "informative_chunks_kept": 26
+  }
+}

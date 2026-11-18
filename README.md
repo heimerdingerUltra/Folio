@@ -109,8 +109,37 @@ python scripts/benchmark_opendataloader_against_pipeline.py
 python -m pdf_chunking.dataset_validation_cli results.json --max-tokens 400
 ```
 
+Scanned pages, figures and document structure (see [Document engine](#document-engine)):
+
+```bash
+python process_pdfs.py --input ./data --output ./results.json --export-structure --workers 4
+```
+
+```bash
+python scripts/download_arxiv_papers.py --training-corpus
+```
+
+```bash
+python scripts/evaluate_document_metadata.py
+```
+
 ```bash
 python -m pytest tests -q
+```
+
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request:
+
+1. the tests, on Python 3.10 and 3.12;
+2. the build of the wheel and the source distribution, checked with `twine`, then installed in a
+   clean environment where the `process-pdfs` command is run;
+3. the upload of both files as the `dist` artifact of the run.
+
+A tag `vX.Y.Z` equal to the package version also publishes them as a GitHub release:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
 ```
 
 ## Parsing
@@ -163,11 +192,52 @@ Equations are linearised: `softmax(QKᵀ/√dₖ)V` becomes `softmax(QKT √dk )
 keeps an equation on one line and attached to the sentence that introduces it.
 
 Author blocks set in several columns come out in mixed order: the 45 author names are intact, the
-pairing with affiliations is lost. Scanned PDFs are detected and reported; there is no OCR.
+pairing with affiliations is lost.
 
 As a dependency, PyMuPDF is fast and well documented, but untyped (`dict[str, Any]`), uses
 bit-mask flags, prints C-library errors to stderr, and is licensed under AGPL-3.0 or a commercial
 licence. Only one module imports it.
+
+### Document engine
+
+Three additions on top of the text-layer path. None of them changes the reference chunk dataset.
+
+**OCR.** A page without a text layer is rendered at 200 dpi and read by RapidOCR (ONNX models, CPU,
+installed with `pip install "folio[ocr]"`). The recognised lines are grouped into the same typed
+blocks as the text-layer path, so reading order, header removal, heading detection and chunking
+run unchanged. `--ocr auto` (default) reads only pages without text, `force` reads every page,
+`off` restores the previous behaviour (the PDF is reported as scanned).
+
+Check: the first six pages of *Attention Is All You Need*, converted to images, then read back
+and compared with the text layer of the original.
+
+| | Scanned copy, OCR | Original, text layer |
+|---|---:|---:|
+| Words recovered (recall / precision) | 97.0% / 98.9% | reference |
+| Title | correct | correct |
+| Section headings found | 12 | 13 |
+| Time per page (CPU) | 8.6 s | 0.02 s |
+
+OCR gives no font: the size is estimated from the line height and bold is unknown, so headings
+on scanned pages rely on numbering and well-known names. Displayed equations and footnotes are
+read as plain paragraphs, and the table model is not run on those pages. One document, six pages:
+this is a check that the path works, not a benchmark of the OCR model.
+
+**Figures.** A PDF has no figure object. [`figure_extraction.py`](pdf_chunking/figure_extraction.py)
+collects the graphic regions of a page (raster images and clusters of vector drawings), links
+each "Figure N" caption to the regions stacked above it, and renders that area to a PNG. On the
+five papers, 19 of the 22 figure captions get an image; the other three are not matched.
+
+**Structure.** `--export-structure` writes, per document, in `<output>.documents/`:
+
+* `<name>.json`: the section tree, each block under its heading with its type, page, bounding
+  box and reading order, and the figures with their image file;
+* `<name>.md`: a Markdown rendering in reading order, figures inserted after their caption;
+* `<name>/figure_NN_pP.png`: the figure images.
+
+**Parallel parsing.** `--workers N` parses PDFs in N processes, largest files first. The dataset
+is identical to the sequential one (compared byte for byte). On 40 papers with the heuristic
+table mode: 28.4 s with one process, 15.5 s with four.
 
 ### Comparison with OpenDataLoader PDF
 
@@ -278,6 +348,51 @@ Colab T4 from a notebook that installs this package; the notebook is provided se
 Papers are split into train (3), validation (1, used to select hyperparameters) and test (1, read
 once). A chunk is labelled with a field only if its own text supports it.
 
+Most chunks support nothing: a paper states its title, authors and problem once. Of 290 labelled
+chunks, 27 carry at least one field. Two things address this.
+
+**More training papers, labelled automatically.** `download-arxiv-papers --training-corpus` fetches
+40 other arXiv papers with their record from the arXiv API.
+[`arxiv_training_examples.py`](metadata_extraction/arxiv_training_examples.py) labels their chunks
+with the title, the authors and the opening sentences of the abstract (a proxy for the problem
+statement), under the same rule: the chunk must contain the value. The API has no key metrics, so
+a chunk quoting a percentage or a decimal number is left out instead of being labelled "no metric".
+These papers join the training set only.
+
+| Training set | Papers | Examples | Informative | Title | Authors | Problem | Metrics |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Hand-labelled papers | 3 | 30 | 15 | 3 | 3 | 4 | 11 |
+| With the arXiv corpus | 43 | 156 | 78 | 43 | 42 | 22 | 11 |
+
+Coverage of the automatic labels: title found in 38 of 40 papers, 164 of 213 authors, problem
+statement in 18 of 40 (the abstract must match the API text verbatim and quote no figure). The
+fine-tuning itself has not been re-run with this larger set: the results below are those of the
+three-paper training set.
+
+**Document-level extraction.**
+[`document_metadata_extraction.py`](metadata_extraction/document_metadata_extraction.py) reads the
+parsed document instead of isolated chunks: the title is the block typed as title, the authors are
+parsed from the first-page blocks between title and abstract, the problem statement is the opening
+of the abstract, key metrics are the abstract sentences quoting a figure. Each value is returned
+with its page and block. No model is involved.
+
+| 45 papers (5 hand-labelled, 40 from the arXiv API) | |
+|---|---:|
+| Title exact | 44 / 45 |
+| Authors, precision | 95.6% |
+| Authors, recall | 92.2% |
+| Papers with exactly the right author list | 28 / 45 |
+| Abstract located | 38 / 40 |
+
+The author rules were adjusted while looking at failures on these same papers, so these figures
+are not a held-out estimate. Key metrics and problem statements are not scored here: there is no
+reference for the former and the latter is defined as the opening of the abstract.
+
+For a model that reads chunks, `select_chunks_worth_reading` keeps the first page, the abstract,
+introduction, result and conclusion sections, and any chunk quoting a figure: 219 of 356 chunks
+(62%), which contain 26 of the 27 informative ones. `merge_chunk_metadata` folds the per-chunk
+answers into one record. This routing has not been run with the fine-tuned model.
+
 | Step | Method |
 |---|---|
 | Training-set checks | 10 checks: leakage between splits, near-duplicates, grounded labels, class balance |
@@ -331,18 +446,23 @@ spelling variants as errors.
 * The layout rules were developed on five LaTeX papers. The run report counts how often each rule
   fires, which helps when moving to other document types.
 * Table grids and equations are approximate (see [Limits](#limits)).
-* No OCR.
+* OCR was checked on one rasterised paper, not on real scans (skew, noise, stamps).
+* The fine-tuning has not been re-run with the arXiv training corpus.
 * The retrieval benchmark and the extraction test set are small.
 
 ## Repository layout
 
 ```
 pyproject.toml                    package definition: dependencies, extras, commands
+.github/workflows/ci.yml          tests, wheel build, release on tag
 process_pdfs.py, main.py          command-line entry points
 pdf_chunking/
   command_line.py                 arguments and pipeline chain
-  arxiv_papers.py                 downloads the five papers
+  arxiv_papers.py                 downloads the five papers, or 40 more with their arXiv record
   pdf_layout_extraction.py        PyMuPDF spans to typed blocks in reading order
+  page_ocr.py                     OCR of pages without a text layer
+  figure_extraction.py            figures linked to their caption, exported as images
+  document_structure.py           section tree and Markdown export
   opendataloader_extraction.py    OpenDataLoader PDF output to the same typed blocks
   parser_comparison.py            parsers compared through the same chunker and questions
   text_normalization.py           clean-up, de-hyphenation, sentence splitting
@@ -356,5 +476,5 @@ pdf_chunking/
 metadata_extraction/              LoRA experiment: data, training, evaluation, tracking
 scripts/                          benchmarks and parameter sweep
 benchmarks/                       benchmark results
-tests/                            153 tests, on synthetic PDFs
+tests/                            184 tests, on synthetic PDFs
 ```

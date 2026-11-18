@@ -6,6 +6,7 @@ Every stage returns the experiment, so a run reads as its list of steps::
         .fix_random_seeds()
         .load_chunk_dataset()
         .build_grounded_examples()
+        .add_arxiv_training_examples()
         .split_by_document()
         .validate_training_data()
         .evaluate_rule_based_baseline()
@@ -44,6 +45,11 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
 
+from metadata_extraction.arxiv_training_examples import (
+    build_arxiv_training_examples,
+    load_arxiv_metadata,
+    summarize_arxiv_label_coverage,
+)
 from metadata_extraction.approach_comparison import SELECTION_RULE, build_approach_leaderboard, select_best_approach
 from metadata_extraction.behavioural_tests import (
     perturb_chunk_without_changing_its_meaning,
@@ -104,6 +110,10 @@ class LoraFinetuningConfig:
             only trusted for the training length it was validated at.
         validation_document: Paper used to select hyperparameters.
         test_document: Paper read once, for the final comparison.
+        arxiv_chunk_dataset_path: Chunks of the extra training papers
+            (optional); they are labelled from ``arxiv_metadata_path`` and
+            added to the training set only.
+        arxiv_metadata_path: ``arxiv_metadata.json`` of those papers.
         empty_per_informative: Empty-target examples kept per informative
             one in the training set (searched; held-out sets stay at 1.0).
         max_evaluation_examples: Cap on generated answers per approach.
@@ -136,6 +146,8 @@ class LoraFinetuningConfig:
     chunk_dataset_path: str = "results.json"
     validation_document: str = "ChunkNorris.pdf"
     test_document: str = "RAG.pdf"
+    arxiv_chunk_dataset_path: str | None = None
+    arxiv_metadata_path: str | None = None
     empty_per_informative: float = 1.0
     max_evaluation_examples: int = 12
     max_new_tokens: int = 400
@@ -167,6 +179,8 @@ class MetadataExtractionExperiment:
         self.tracker = tracker or ExperimentTracker([])
         self.chunks: list[dict[str, Any]] = []
         self.examples: list[TrainingExample] = []
+        self.arxiv_examples: list[TrainingExample] = []
+        self.arxiv_label_coverage: dict[str, Any] = {}
         self.train_examples: list[TrainingExample] = []
         self.validation_examples: list[TrainingExample] = []
         self.test_examples: list[TrainingExample] = []
@@ -213,6 +227,24 @@ class MetadataExtractionExperiment:
         self.examples = build_grounded_examples(self.chunks)
         return self
 
+    def add_arxiv_training_examples(self) -> MetadataExtractionExperiment:
+        """Label the extra training papers from their arXiv metadata (if configured).
+
+        Raises:
+            ValueError: If an extra paper is also a hand-labelled one, which
+                would leak a held-out document into the training set.
+        """
+        if not (self.config.arxiv_chunk_dataset_path and self.config.arxiv_metadata_path):
+            return self
+        metadata = load_arxiv_metadata(self.config.arxiv_metadata_path)
+        if overlap := {example.document for example in self.examples} & set(metadata):
+            raise ValueError(f"Extra training papers overlap the hand-labelled ones: {sorted(overlap)}")
+        self.arxiv_examples = build_arxiv_training_examples(
+            load_chunk_dataset(self.config.arxiv_chunk_dataset_path), metadata
+        )
+        self.arxiv_label_coverage = summarize_arxiv_label_coverage(self.arxiv_examples, metadata)
+        return self
+
     def split_by_document(self) -> MetadataExtractionExperiment:
         """Train / validation / test by paper, then balance the classes.
 
@@ -223,6 +255,7 @@ class MetadataExtractionExperiment:
             self.examples, self.config.validation_document, self.config.test_document
         )
         seed = self.config.seed
+        train = [*train, *self.arxiv_examples]
         self.train_examples = downsample_empty_examples(train, self.config.empty_per_informative, seed)
         self.validation_examples = downsample_empty_examples(validation, 1.0, seed)
         self.test_examples = downsample_empty_examples(test, 1.0, seed)
@@ -236,7 +269,7 @@ class MetadataExtractionExperiment:
                 labels, missing gold coverage or a degenerate class balance.
         """
         self.validation_checks = validate_training_data(
-            self.examples, self.train_examples, self.validation_examples, test_examples=self.test_examples
+            [*self.examples, *self.arxiv_examples], self.train_examples, self.validation_examples, test_examples=self.test_examples
         )
         raise_if_any_check_failed(self.validation_checks)
         return self
@@ -256,6 +289,7 @@ class MetadataExtractionExperiment:
 
         return {
             "label_coverage": summarize_label_coverage(self.examples),
+            "arxiv_label_coverage": self.arxiv_label_coverage,
             "train": describe(self.train_examples),
             "validation": describe(self.validation_examples),
             "test": describe(self.test_examples),

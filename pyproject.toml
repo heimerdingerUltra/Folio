@@ -18,6 +18,8 @@ dependencies = [
 [project.optional-dependencies]
 # Layout model for table detection (--table-detection layout).
 layout = ["pymupdf-layout>=2.1"]
+# OCR for pages without a text layer (--ocr auto): ONNX models, CPU, no system dependency.
+ocr = ["rapidocr>=3.0", "onnxruntime>=1.17"]
 # Alternative parser (--pdf-parser opendataloader); also needs Java 11+.
 opendataloader = ["opendataloader-pdf>=2.5"]
 # TF-IDF quality metrics, lexical and dense retrievers.
@@ -31,7 +33,7 @@ experiment = [
     "mlflow-skinny>=2.14", # experiment tracking, local
     "wandb>=0.17",         # experiment tracking, online with WANDB_API_KEY, offline without
 ]
-all = ["folio[layout,opendataloader,benchmarks,experiment]"]
+all = ["folio[layout,ocr,opendataloader,benchmarks,experiment]"]
 dev = [
     "pytest>=8.0",
     "pdfplumber>=0.11", # scripts/benchmark_pdf_parsers.py

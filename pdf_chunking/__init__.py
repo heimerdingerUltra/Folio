@@ -6,4 +6,4 @@ by ``chunking_pipeline`` and measured by ``chunk_quality_metrics`` and
 ``retrieval_benchmark``.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

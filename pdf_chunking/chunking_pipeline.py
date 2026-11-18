@@ -11,6 +11,7 @@ import logging
 import platform
 import time
 import uuid
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from importlib import metadata
@@ -24,6 +25,7 @@ from pdf_chunking.chunk_dataset_export import write_chunk_dataset, write_json_fi
 from pdf_chunking.chunk_quality_metrics import compute_chunk_quality_report, summarize_token_lengths
 from pdf_chunking.chunk_record_schema import ChunkRecord, validate_chunk_dataset
 from pdf_chunking.chunking_strategies import ChunkingConfig, chunk_parsed_document
+from pdf_chunking.document_structure import export_structured_document
 from pdf_chunking.opendataloader_extraction import extract_pdf_documents_with_opendataloader
 from pdf_chunking.pdf_layout_extraction import (
     NoTextLayerError,
@@ -37,7 +39,7 @@ from pdf_chunking.performance_dashboard import write_performance_dashboard
 logger = logging.getLogger(__name__)
 
 EXIT_CODE_BY_STATUS = {"success": 0, "partial": 1, "failed": 2}
-_REPORTED_PACKAGES = ("pymupdf", "pymupdf-layout", "opendataloader-pdf", "pydantic", "tiktoken", "scikit-learn")
+_REPORTED_PACKAGES = ("pymupdf", "pymupdf-layout", "rapidocr", "opendataloader-pdf", "pydantic", "tiktoken", "scikit-learn")
 
 PdfParser = Literal["pymupdf", "opendataloader"]
 
@@ -55,6 +57,9 @@ class ChunkingPipelineConfig:
         chunking: Chunking options.
         benchmark_against_fixed_windows: Also chunk with the naive baseline,
             score it, and export it for the retrieval benchmark.
+        export_structure: Also write, per document, its section tree (JSON),
+            a Markdown rendering and its figures as images.
+        workers: Processes used to parse PDFs (``pymupdf`` parser only).
     """
 
     input_path: Path
@@ -63,6 +68,8 @@ class ChunkingPipelineConfig:
     extraction: PdfExtractionConfig = field(default_factory=PdfExtractionConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
     benchmark_against_fixed_windows: bool = False
+    export_structure: bool = False
+    workers: int = 1
 
     def _sibling(self, suffix: str) -> Path:
         """A path next to the output file, with ``suffix`` appended to its stem."""
@@ -77,6 +84,11 @@ class ChunkingPipelineConfig:
     def dashboard_path(self) -> Path:
         """Where the HTML dashboard is written."""
         return self._sibling(".dashboard.html")
+
+    @property
+    def structured_documents_dir(self) -> Path:
+        """Folder of the per-document structure, Markdown and figure images."""
+        return self._sibling(".documents")
 
     @property
     def fixed_window_baseline_path(self) -> Path:
@@ -117,6 +129,18 @@ def _drain_mupdf_warnings() -> list[str]:
     return sorted({line.strip() for line in text.splitlines() if line.strip()})[:10]
 
 
+def _extract_and_time(path: Path, config: PdfExtractionConfig) -> tuple[ParsedDocument | PdfExtractionError, float]:
+    """Parse one PDF in a worker process; errors are returned, not raised."""
+    started = time.perf_counter()
+    try:
+        result: ParsedDocument | PdfExtractionError = extract_pdf_document(path, config)
+    except PdfExtractionError as error:
+        result = error
+    except Exception as error:  # noqa: BLE001 - must cross the process boundary as a plain error
+        result = PdfExtractionError(f"Unexpected {type(error).__name__}: {error}")
+    return result, time.perf_counter() - started
+
+
 class ChunkingPipeline:
     """PDF folder -> chunk dataset, one chainable stage at a time.
 
@@ -151,16 +175,18 @@ class ChunkingPipeline:
         # MuPDF would otherwise print repair messages straight to stderr.
         pymupdf.TOOLS.mupdf_display_errors(False)
         pymupdf.TOOLS.mupdf_display_warnings(False)
-        opendataloader_results = self._extract_batch_with_opendataloader()
+        precomputed = self._extract_batch_with_opendataloader() or self._extract_in_parallel()
         for path in self.pdf_paths:
             entry: dict[str, Any] = {"source_document": path.name, "status": "ok", "error": None}
             started = time.perf_counter()
+            seconds_elsewhere = 0.0
             try:
-                if opendataloader_results is None:
+                if precomputed is None:
                     document = extract_pdf_document(path, self.config.extraction)
-                elif isinstance(result := opendataloader_results[path.name], PdfExtractionError):
-                    raise result
                 else:
+                    result, seconds_elsewhere = precomputed[path.name]
+                    if isinstance(result, PdfExtractionError):
+                        raise result
                     document = result
             except NoTextLayerError as error:
                 entry.update(status="no_text_layer", error=str(error))
@@ -177,7 +203,7 @@ class ChunkingPipeline:
                     extraction=document.stats,
                     warnings=document.warnings,
                 )
-            entry["extraction_seconds"] = round(time.perf_counter() - started + self._batch_seconds_per_pdf, 3)
+            entry["extraction_seconds"] = round(time.perf_counter() - started + seconds_elsewhere, 3)
             if parser_warnings := _drain_mupdf_warnings():
                 entry["parser_warnings"] = parser_warnings
             if entry["status"] != "ok":
@@ -185,9 +211,25 @@ class ChunkingPipeline:
             self.document_reports.append(entry)
         return self
 
-    def _extract_batch_with_opendataloader(self) -> dict[str, ParsedDocument | PdfExtractionError] | None:
+    def _extract_in_parallel(self) -> dict[str, tuple[ParsedDocument | PdfExtractionError, float]] | None:
+        """Parse the PDFs in worker processes; ``None`` when one process is enough.
+
+        The largest files are submitted first so that they do not end up
+        queued behind each other. Results are keyed by file name: the order
+        of the dataset does not depend on which worker finishes first.
+        """
+        workers = min(self.config.workers, len(self.pdf_paths))
+        if self.config.pdf_parser != "pymupdf" or workers < 2:
+            return None
+        largest_first = sorted(self.pdf_paths, key=lambda path: -path.stat().st_size)
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = {path.name: pool.submit(_extract_and_time, path, self.config.extraction) for path in largest_first}
+            return {name: future.result() for name, future in futures.items()}
+
+    def _extract_batch_with_opendataloader(
+        self,
+    ) -> dict[str, tuple[ParsedDocument | PdfExtractionError, float]] | None:
         """Parse all PDFs in one JVM run; ``None`` when the PyMuPDF parser is selected."""
-        self._batch_seconds_per_pdf = 0.0
         if self.config.pdf_parser != "opendataloader" or not self.pdf_paths:
             return None
         started = time.perf_counter()
@@ -198,8 +240,8 @@ class ChunkingPipeline:
         except PdfExtractionError as error:  # backend unavailable: every file fails the same way
             results = {path.name: error for path in self.pdf_paths}
         # The JVM start is shared by the batch; spread it so per-file timings add up.
-        self._batch_seconds_per_pdf = (time.perf_counter() - started) / len(self.pdf_paths)
-        return results
+        seconds_per_pdf = (time.perf_counter() - started) / len(self.pdf_paths)
+        return {name: (result, seconds_per_pdf) for name, result in results.items()}
 
     def chunk_documents(self) -> ChunkingPipeline:
         """Chunk every parsed document with the configured strategy."""
@@ -262,6 +304,22 @@ class ChunkingPipeline:
         )
         write_chunk_dataset(baseline_chunks, self.config.fixed_window_baseline_path)
         logger.info("Wrote %d baseline chunks to %s", len(baseline_chunks), self.config.fixed_window_baseline_path)
+        return self
+
+    def export_structured_documents(self) -> ChunkingPipeline:
+        """Write the section tree, Markdown and figure images of each document (if enabled)."""
+        if not self.config.export_structure:
+            return self
+        paths = {path.name: path for path in self.pdf_paths}
+        entries = {entry["source_document"]: entry for entry in self.document_reports}
+        for document in self.parsed_documents:
+            try:
+                entries[document.source_document]["structured_export"] = export_structured_document(
+                    paths[document.source_document], document, self.config.structured_documents_dir
+                )
+            except Exception as error:  # noqa: BLE001 - an optional export must not fail the run
+                logger.warning("%s: structured export failed: %s", document.source_document, error)
+        logger.info("Wrote structured documents to %s", self.config.structured_documents_dir)
         return self
 
     def export_chunk_dataset(self) -> ChunkingPipeline:

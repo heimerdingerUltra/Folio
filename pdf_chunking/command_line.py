@@ -58,6 +58,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
                             help="Run the layout model on all pages, not only likely table pages.")
     extraction.add_argument("--keep-text-inside-figures", action="store_true",
                             help="Keep axis labels and diagram text.")
+    extraction.add_argument("--ocr", choices=("auto", "off", "force"), default="auto",
+                            help="'auto' = OCR pages without a text layer (needs rapidocr); "
+                                 "'force' = OCR every page; 'off' = never.")
+    extraction.add_argument("--workers", type=int, default=1,
+                            help="Processes used to parse PDFs (pymupdf parser).")
+    extraction.add_argument("--export-structure", action="store_true",
+                            help="Also write the section tree (JSON), Markdown and figure images of each document.")
 
     log = parser.add_argument_group("logging")
     log.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING", "ERROR"), default="INFO")
@@ -81,6 +88,7 @@ def build_pipeline_config(args: argparse.Namespace) -> ChunkingPipelineConfig:
             table_detection=args.table_detection,
             skip_pages_without_table_signals=not args.scan_every_page_for_tables,
             drop_text_inside_figures=not args.keep_text_inside_figures,
+            ocr=args.ocr,
         ),
         chunking=ChunkingConfig(
             strategy=args.strategy,
@@ -89,6 +97,8 @@ def build_pipeline_config(args: argparse.Namespace) -> ChunkingPipelineConfig:
             min_tokens=args.min_tokens,
         ),
         benchmark_against_fixed_windows=args.benchmark_against_fixed_windows,
+        export_structure=args.export_structure,
+        workers=max(args.workers, 1),
     )
 
 
@@ -106,6 +116,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             .measure_chunk_quality()
             .benchmark_against_fixed_windows()
             .export_chunk_dataset()
+            .export_structured_documents()
             .write_run_report()
             .render_performance_dashboard()
             .exit_code

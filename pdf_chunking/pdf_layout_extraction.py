@@ -9,6 +9,10 @@ equation, caption, footnote, table):
 3. reading order for one- and two-column pages;
 4. block classification from typography;
 5. clean-up: running headers, text inside figures, hyphenation, sections.
+
+Pages without a text layer are read by OCR (:mod:`pdf_chunking.page_ocr`) and
+go through steps 3 to 5 unchanged. Figures are located and linked to their
+caption (:mod:`pdf_chunking.figure_extraction`).
 """
 
 from __future__ import annotations
@@ -24,6 +28,14 @@ from typing import Any, Literal
 
 import pymupdf
 
+from pdf_chunking.figure_extraction import BoundingBox, Figure, find_graphic_regions, match_figures_to_captions
+from pdf_chunking.page_ocr import (
+    OcrMode,
+    estimate_font_size,
+    group_lines_into_paragraphs,
+    is_ocr_installed,
+    recognize_page_lines,
+)
 from pdf_chunking.text_normalization import count_document_words, join_wrapped_lines, normalize_pdf_text
 
 logger = logging.getLogger(__name__)
@@ -68,12 +80,18 @@ class PdfExtractionConfig:
             previous page.
         drop_text_inside_figures: Remove axis labels and diagram text.
         min_chars_per_page: Below this average, the PDF has no text layer.
+        ocr: ``auto`` reads pages without a text layer with OCR when
+            ``rapidocr`` is installed, ``force`` reads every page with OCR
+            and ignores the text layer, ``off`` never runs OCR.
+        ocr_min_confidence: Recognised lines scored below this are dropped.
     """
 
     table_detection: TableDetectionMode = "auto"
     skip_pages_without_table_signals: bool = True
     drop_text_inside_figures: bool = True
     min_chars_per_page: int = 25
+    ocr: OcrMode = "auto"
+    ocr_min_confidence: float = 0.5
 
 
 def is_layout_model_installed() -> bool:
@@ -118,6 +136,7 @@ class TextBlock:
         starts_with_marker: Opens with a superscript marker (footnote signature).
         heading_level: Heading depth (1 = top level), 0 otherwise.
         section_path: Enclosing headings, outermost first.
+        from_ocr: Text read by OCR rather than from the text layer.
     """
 
     text: str
@@ -132,6 +151,7 @@ class TextBlock:
     starts_with_marker: bool = False
     heading_level: int = 0
     section_path: tuple[str, ...] = ()
+    from_ocr: bool = False
 
     @property
     def char_count(self) -> int:
@@ -151,6 +171,7 @@ class ParsedDocument:
         stats: Counters describing what the extractor did (tables found,
             blocks dropped, pages by layout...). Surfaced in the run report.
         warnings: Human-readable, non-fatal problems.
+        figures: Figures located on the pages, each linked to its caption.
     """
 
     source_document: str
@@ -159,6 +180,7 @@ class ParsedDocument:
     blocks: list[TextBlock]
     stats: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+    figures: list[Figure] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------
@@ -365,6 +387,32 @@ def _build_block_from_pymupdf_dict(raw: dict[str, Any], page_number: int) -> Tex
         math_ratio=math / total,
         starts_with_marker=starts_with_marker,
     )
+
+
+def _build_blocks_from_ocr(page: pymupdf.Page, page_number: int, min_confidence: float) -> tuple[list[TextBlock], list[float]]:
+    """Read a page with OCR; returns its blocks and the confidence of each kept line."""
+    lines = recognize_page_lines(page, min_confidence)
+    blocks = []
+    for paragraph in group_lines_into_paragraphs(lines):
+        font_size = estimate_font_size(paragraph)
+        blocks.append(
+            TextBlock(
+                text="",
+                block_type="paragraph",
+                page_number=page_number,
+                bbox=(
+                    min(line.bbox[0] for line in paragraph),
+                    min(line.bbox[1] for line in paragraph),
+                    max(line.bbox[2] for line in paragraph),
+                    max(line.bbox[3] for line in paragraph),
+                ),
+                lines=[line.text for line in paragraph],
+                font_size=font_size,
+                max_font_size=font_size,
+                from_ocr=True,
+            )
+        )
+    return blocks, [line.confidence for line in lines]
 
 
 # --------------------------------------------------------------------------
@@ -675,6 +723,8 @@ def _classify_block_type(
             or (emphasized and (numbered or known))
             # Small-caps headings (ICLR style) are neither bold nor larger.
             or (numbered and all_caps and len(block.lines) == 1)
+            # OCR gives no font: a numbered or well-known one-line title is enough.
+            or (block.from_ocr and len(block.lines) == 1 and (numbered or known) and not _SENTENCE_END_RE.search(text))
         ):
             block.block_type = "heading"
             block.heading_level = _infer_heading_level(text, toc_level)
@@ -750,6 +800,12 @@ def _drop_text_inside_figures(blocks: list[TextBlock], stats: dict[str, Any]) ->
     by_page: dict[int, list[int]] = defaultdict(list)
     for index, block in enumerate(blocks):
         by_page[block.page_number].append(index)
+    # On the first page, what is printed between the title and the first
+    # heading is the author block. It is short and can sit above a figure
+    # of the other column, but it is never figure text.
+    first_page_headings = [b.bbox[1] for b in blocks if b.page_number == 1 and b.block_type == "heading"]
+    has_title = any(block.block_type == "title" for block in blocks)
+    front_matter_bottom = min(first_page_headings) if first_page_headings and has_title else 0.0
 
     for indices in by_page.values():
         # Left edges of the page's body paragraphs = its text margins.
@@ -783,6 +839,8 @@ def _drop_text_inside_figures(blocks: list[TextBlock], stats: dict[str, Any]) ->
                     and len(text.split()) < 15
                     and not is_sentence
                 )
+                if is_fragment and block.page_number == 1 and block.bbox[3] <= front_matter_bottom:
+                    continue
                 if is_fragment:
                     candidates.append(i)
                 else:
@@ -957,6 +1015,12 @@ def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = 
     blocks: list[TextBlock] = []
     page_heights: dict[int, float] = {}
     page_widths: dict[int, float] = {}
+    ocr_confidences: list[float] = []
+    graphic_regions: dict[int, list[BoundingBox]] = {}
+    if config.ocr == "force" and not is_ocr_installed():
+        document.close()
+        raise PdfExtractionError("ocr='force' requires the 'rapidocr' package (pip install \"folio[ocr]\").")
+    use_ocr = config.ocr != "off" and is_ocr_installed()
 
     try:
         try:
@@ -970,26 +1034,37 @@ def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = 
             page_number = page_index + 1
             try:
                 page = document[page_index]
-                raw_blocks = page.get_text("dict", flags=_TEXT_FLAGS)["blocks"]
-                page_blocks = [
-                    block
-                    for raw in raw_blocks
-                    if raw.get("type", 0) == 0
-                    and (block := _build_block_from_pymupdf_dict(raw, page_number)) is not None
-                ]
+                page_blocks = []
+                if config.ocr != "force":
+                    raw_blocks = page.get_text("dict", flags=_TEXT_FLAGS)["blocks"]
+                    page_blocks = [
+                        block
+                        for raw in raw_blocks
+                        if raw.get("type", 0) == 0
+                        and (block := _build_block_from_pymupdf_dict(raw, page_number)) is not None
+                    ]
+                read_by_ocr = False
                 if not page_blocks:
                     stats["pages_without_text"] += 1
-                    if page.get_images():
+                    has_content = bool(page.get_images() or page.get_drawings())
+                    if use_ocr and has_content:
+                        page_blocks, confidences = _build_blocks_from_ocr(page, page_number, config.ocr_min_confidence)
+                        ocr_confidences.extend(confidences)
+                        stats["pages_read_by_ocr"] += 1
+                        read_by_ocr = True
+                    elif has_content and page.get_images():
                         warnings.append(
                             f"Page {page_number} has images but no text layer (scanned page? OCR needed)."
                         )
-                    continue
-                run_finder = table_detection == "layout" and (
+                    if not page_blocks:
+                        continue
+                # The table finder reads the text layer, which an OCR page does not have.
+                run_finder = not read_by_ocr and table_detection == "layout" and (
                     not config.skip_pages_without_table_signals
                     or _page_may_contain_table(page, page_blocks, previous_page_had_table)
                 )
                 previous_page_had_table = False
-                if table_detection == "layout":
+                if table_detection == "layout" and not read_by_ocr:
                     stats["table_finder_pages" if run_finder else "table_finder_pages_skipped"] += 1
                 if run_finder:
                     tables = _detect_table_blocks(page, page_number)
@@ -1008,6 +1083,10 @@ def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = 
                 logger.warning("%s: page %d failed: %s", path.name, page_number, exc)
                 continue
 
+            try:
+                graphic_regions[page_number] = find_graphic_regions(page)
+            except Exception:  # noqa: BLE001 - figures are optional
+                graphic_regions[page_number] = []
             page_heights[page_number] = page.rect.height
             page_widths[page_number] = page.rect.width
             if is_two_column_page(page_blocks, page.rect.width):
@@ -1023,7 +1102,8 @@ def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = 
     if total_chars < config.min_chars_per_page * page_count:
         raise NoTextLayerError(
             f"{path.name}: only {total_chars} characters over {page_count} page(s); "
-            "the PDF appears to be scanned or image-only and needs OCR."
+            "the PDF appears to be scanned or image-only and needs OCR"
+            + (" (ocr is off)." if config.ocr == "off" else ' (pip install "folio[ocr]").' if not use_ocr else ".")
         )
 
     # Body font size = the size carrying the most characters in the document.
@@ -1051,6 +1131,11 @@ def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = 
     _resolve_block_text(blocks)
     blocks = [block for block in blocks if block.text]
     assign_section_paths(blocks)
+    figures = match_figures_to_captions(
+        [(block.page_number, block.bbox, block.text) for block in blocks if block.block_type == "caption"],
+        graphic_regions,
+    )
+    stats["figures_located"] = len(figures)
 
     for block_type, count in Counter(block.block_type for block in blocks).items():
         stats[f"blocks_{block_type}"] = count
@@ -1061,6 +1146,9 @@ def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = 
     stats.setdefault("two_column_pages", 0)
     stats.setdefault("pages_without_text", 0)
     stats.setdefault("pages_failed", 0)
+    stats.setdefault("pages_read_by_ocr", 0)
+    if ocr_confidences:
+        stats["ocr_mean_confidence"] = round(statistics.fmean(ocr_confidences), 3)
 
     return ParsedDocument(
         source_document=path.name,
@@ -1069,4 +1157,5 @@ def extract_pdf_document(path: Path | str, config: PdfExtractionConfig | None = 
         blocks=blocks,
         stats=dict(stats),
         warnings=warnings,
+        figures=figures,
     )
