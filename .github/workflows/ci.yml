@@ -1,0 +1,97 @@
+name: CI
+
+# Tests on every push and pull request, then the wheel and the source
+# distribution. A tag "vX.Y.Z" also publishes them as a GitHub release.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # OpenDataLoader PDF runs on a JVM.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      # The "benchmarks" extra is left out: sentence-transformers pulls PyTorch,
+      # which no test needs. scikit-learn is the part of it the tests use.
+      - name: Install the package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[layout,ocr,opendataloader,experiment,dev]" scikit-learn
+      - name: Run the tests
+        run: python -m pytest tests -q
+
+  build:
+    name: Build the wheel
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the wheel and the source distribution
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check --strict dist/*
+      - name: Install the wheel in a clean environment and run its commands
+        run: |
+          python -m venv /tmp/wheel-check
+          /tmp/wheel-check/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/wheel-check/bin/process-pdfs --help > /dev/null
+          /tmp/wheel-check/bin/python -c "from pdf_chunking.retrieval_benchmark import load_questions; assert load_questions()"
+          /tmp/wheel-check/bin/python -c "import metadata_extraction.document_metadata_extraction"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: Publish the GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Check that the tag is the package version
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' pdf_chunking/__init__.py)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+      - name: Create the release with the distributions attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
